@@ -1,0 +1,14 @@
+version: 2
+sql:
+  - engine: sqlite
+    queries: ["./queries/"]
+    schema: ["./schema/schema.sql"]  # Explicit file path in array
+    gen:
+      go:
+        package: sqlite_eev
+        out: generated
+        emit_empty_slices: true
+        rename:
+          user: User
+          shareable: Shareable
+          shareable_options: ShareableOption

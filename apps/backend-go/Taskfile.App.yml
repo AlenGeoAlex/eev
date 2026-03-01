@@ -1,0 +1,14 @@
+# https://taskfile.dev
+
+version: '3'
+
+tasks:
+  app:run:
+    desc: Run application for dev with watch mode
+    cmds:
+      - air
+
+  app:migrate:build:
+    desc: Build migration binary
+    cmds:
+      - go build -o bin/migrate ./cmd/migrator

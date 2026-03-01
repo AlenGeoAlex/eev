@@ -1,0 +1,61 @@
+### Get a particular share
+GET http://localhost:8080/share
+
+### Create a new shareable
+POST http://localhost:8080/share
+Content-Type: application/json
+Cookie: access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFsZW5nZW9hbGV4QGdtYWlsLmNvbSIsImV4cCI6MTc3MjM4MjMwMywiaWF0IjoxNzcyMzc4NzAzLCJpc3MiOiJtZS5lZXYuYWxlbmFsZXgiLCJqdGkiOiJhMzk1MTlhNy0zM2ZmLTRkOWYtODliNy0yMGE2NGI1MTNjMzgiLCJzdWIiOiIxM2Q5ODlhNy0zNmM3LTRjYzAtODE2OC1lZTdmZjRhM2IxMTMifQ.S_aCF7cW34O-i84cxmrTx7IoBapZ6zRXnIOlywgM5Ug
+Cookie: refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzQxMDY3MDMsImlhdCI6MTc3MjM3ODcwMywiaXNzIjoibWUuZWV2LmFsZW5hbGV4IiwianRpIjoiYTM5NTE5YTctMzNmZi00ZDlmLTg5YjctMjBhNjRiNTEzYzM4Iiwic3ViIjoiMTNkOTg5YTctMzZjNy00Y2MwLTgxNjgtZWU3ZmY0YTNiMTEzIn0.zIihZpERwsBW04ckcDnRcITKzAy2p5MxnRpFkQLDrnE
+
+{
+  "name": "My Shareable",
+  "type": "text",
+  "data": "Hello, this is some shared content!",
+  "allowed_emails": ["user@example.com", "other@example.com"],
+  "time_params": {
+    "expiry_at": "2026-06-01T00:00:00Z",
+    "active_from": "2026-03-01T00:00:00Z"
+  },
+  "notification_params": {
+    "email_notification_on_open": true,
+    "notify_target_emails": false
+  },
+  "options": {
+    "only_once": false,
+    "encrypt": false
+  }
+}
+
+### Create a new shareable file
+POST http://localhost:8080/share
+Content-Type: application/json
+Cookie: access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFsZW5nZW9hbGV4QGdtYWlsLmNvbSIsImV4cCI6MTc3MjM4MjMwMywiaWF0IjoxNzcyMzc4NzAzLCJpc3MiOiJtZS5lZXYuYWxlbmFsZXgiLCJqdGkiOiJhMzk1MTlhNy0zM2ZmLTRkOWYtODliNy0yMGE2NGI1MTNjMzgiLCJzdWIiOiIxM2Q5ODlhNy0zNmM3LTRjYzAtODE2OC1lZTdmZjRhM2IxMTMifQ.S_aCF7cW34O-i84cxmrTx7IoBapZ6zRXnIOlywgM5Ug
+Cookie: refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzQxMDY3MDMsImlhdCI6MTc3MjM3ODcwMywiaXNzIjoibWUuZWV2LmFsZW5hbGV4IiwianRpIjoiYTM5NTE5YTctMzNmZi00ZDlmLTg5YjctMjBhNjRiNTEzYzM4Iiwic3ViIjoiMTNkOTg5YTctMzZjNy00Y2MwLTgxNjgtZWU3ZmY0YTNiMTEzIn0.zIihZpERwsBW04ckcDnRcITKzAy2p5MxnRpFkQLDrnE
+
+{
+  "name": "My Shareable",
+  "type": "file",
+  "files": [
+    {
+      "file_name": "test.json",
+      "content_type": "application/octet-stream",
+      "file_size": 20000
+    }
+  ],
+  "allowed_emails": [
+    "user@example.com",
+    "other@example.com"
+  ],
+  "time_params": {
+    "expiry_at": "2026-06-01T00:00:00Z",
+    "active_from": "2026-03-01T00:00:00Z"
+  },
+  "notification_params": {
+    "email_notification_on_open": true,
+    "notify_target_emails": false
+  },
+  "options": {
+    "only_once": false,
+    "encrypt": false
+  }
+}

@@ -1,0 +1,13 @@
+version: '3'
+
+tasks:
+  check:
+    desc: Check devtools container
+    cmds:
+      - docker image inspect {{.DEVTOOLS_IMAGE_NAME}} >/dev/null 2>&1 || (echo "Devtools image missing..." && exit 1)
+
+  build:
+    desc: Build devtools container
+    cmds:
+      - docker build -t {{.DEVTOOLS_IMAGE_NAME}} -f Dockerfile .
+

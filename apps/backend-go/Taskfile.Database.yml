@@ -1,0 +1,65 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+  MIGRATION_DIR: migrations
+  SQLITE_MIGRATION_DIR: "{{.MIGRATION_DIR}}/sqlite"
+  SQLITE_SQLC_DIR: internal/db/sqlite/
+  SQLITE_SQLC_CONFIG: "{{.SQLITE_SQLC_DIR}}sqlc.yaml"
+  SQLITE_SQLC_SCHEMA: "{{.SQLITE_SQLC_DIR}}schema/schema.sql"
+  DOCKER_RUN: "docker run --rm -v {{.ROOT_DIR}}/apps/backend-go/:/app -w /app {{.DEVTOOLS_IMAGE_NAME}}"
+  LOCAL_SQLITE_FILE: 'internal/db/sqlite/db.sqlite'
+
+tasks:
+  generate:schema:sqlite:
+    desc: Generate schema for SQLite database.
+    cmds:
+      - mkdir -p {{.SQLITE_SQLC_DIR}}
+      - rm -f {{.SQLITE_SQLC_SCHEMA}}
+      - |
+        {{.DOCKER_RUN}} sh -c "
+        sqlite3 {{.LOCAL_SQLITE_FILE}} .schema > {{.SQLITE_SQLC_SCHEMA}}
+        "
+      - echo "SQLite schema generated at {{.SQLITE_SQLC_SCHEMA}}"
+      - |
+        {{.DOCKER_RUN}} sh -c "
+        sed 's/\`//g' {{.SQLITE_SQLC_SCHEMA}} > {{.SQLITE_SQLC_SCHEMA}}.tmp && 
+        mv {{.SQLITE_SQLC_SCHEMA}}.tmp {{.SQLITE_SQLC_SCHEMA}}
+        "
+      - echo "Cleaned up SQLite schema at {{.SQLITE_SQLC_SCHEMA}}"
+
+  generate:client:sqlite:
+    desc: Generate sqlc client for Sqlite database.
+    dir: "{{.SQLITE_SQLC_DIR}}"
+    cmds:
+      - "{{.DOCKER_RUN}} sqlc generate --file {{.SQLITE_SQLC_CONFIG}}"
+
+  migration:new:sqlite:
+    desc: Create a new migration file for SQLite database.
+    cmds:
+      - migrate create -ext sql -dir {{.SQLITE_MIGRATION_DIR}} -seq {{.NAME}}
+      - echo "Migration file created successfully for SQLite database."
+
+  migration:new:
+    desc: Create a new migration file for the specified database with specified name.
+    cmds:
+      - task migrate:new:pgsql NAME={{.NAME}}
+      - task migrate:new:sqlite NAME={{.NAME}}
+      - echo "Migration file created successfully for both PostgreSQL and SQLite databases."
+
+  migrate:up-local:sqlite:
+    desc: Run SQLite migrations (up)
+    cmds:
+      - |
+        DB_TYPE=sqlite \
+        DB_SQLITE_PATH={{.LOCAL_SQLITE_FILE}} \
+        go run ./cmd/migrator/main.go --direction=up
+
+  migrate:down-local:sqlite:
+    desc: Rollback SQLite migrations
+    cmds:
+      - |
+        DB_TYPE=sqlite \
+        DB_SQLITE_PATH={{.LOCAL_SQLITE_FILE}} \
+        go run ./cmd/migrator/main.go --direction=down

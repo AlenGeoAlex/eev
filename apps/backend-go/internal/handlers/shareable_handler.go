@@ -1,0 +1,286 @@
+package handlers
+
+import (
+	"backend-go/internal/httpx"
+	"backend-go/internal/services"
+	"context"
+	"encoding/json"
+	"errors"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+)
+
+type ShareableHandler struct {
+	shareableService *services.ShareableService
+}
+
+type CreateShareableRequest struct {
+	Name               *string                                   `json:"name" validate:"required"`
+	Type               services.ShareableType                    `json:"type" validate:"required"`
+	Data               *string                                   `json:"data"`
+	Files              *[]ShareableFileRequest                   `json:"files"`
+	AllowedEmails      *[]string                                 `json:"allowed_emails"`
+	TimeParams         *CreateShareableRequestTimeParams         `json:"time_params" validate:"required"`
+	NotificationParams *CreateShareableRequestNotificationParams `json:"notification_params"`
+	Options            *CreateShareableRequestParams             `json:"options"`
+}
+
+type ShareableFileRequest struct {
+	FileName    string `json:"file_name" validate:"required"`
+	ContentType string `json:"content_type" validate:"required"`
+	FileSize    int64  `json:"file_size" validate:"required"`
+}
+
+// ShareableFileUpload is what we return per file — the client uses upload_url to PUT directly to S3
+type ShareableFileUpload struct {
+	FileID    string `json:"file_id"`
+	FileName  string `json:"file_name"`
+	UploadURL string `json:"upload_url"`
+}
+
+type CreateShareableResponse struct {
+	Code    string                `json:"code"`
+	Uploads []ShareableFileUpload `json:"uploads,omitempty"` // only present for file type
+}
+
+type CreateShareableRequestParams struct {
+	OnlyOnce bool `json:"only_once"`
+	Encrypt  bool `json:"encrypt"`
+}
+
+type CreateShareableRequestNotificationParams struct {
+	EmailNotificationOnOpen bool `json:"email_notification_on_open"`
+	NotifyTargetEmails      bool `json:"notify_target_emails"`
+}
+
+type CreateShareableRequestTimeParams struct {
+	ExpiryAt   *time.Time `json:"expiry_at"`
+	ActiveFrom *time.Time `json:"active_from"`
+}
+
+type GetShareableResponse struct {
+	Code  *services.ShareableCode
+	Token *string
+}
+
+func NewShareableHandler(shareableService *services.ShareableService) *ShareableHandler {
+	return &ShareableHandler{shareableService: shareableService}
+}
+
+// CreateShareable handles the creation of a new shareable resource based on the request details provided by the client.
+func (h *ShareableHandler) CreateShareable(w http.ResponseWriter, r *http.Request) {
+	body, ok := r.Context().Value(httpx.BodyKey).(CreateShareableRequest)
+	if !ok {
+		http.Error(w, "missing request body", http.StatusInternalServerError)
+		return
+	}
+
+	if body.Type == services.ShareableTypeFile {
+		if body.Data != nil && *body.Data != "" {
+			h.respondJSON(w, http.StatusBadRequest, "data must be empty for file type")
+			return
+		}
+		if body.Files == nil || len(*body.Files) == 0 {
+			h.respondJSON(w, http.StatusBadRequest, "at least one file is required for file type")
+			return
+		}
+	} else {
+		if body.Options.Encrypt && body.Data != nil {
+			h.respondJSON(w, http.StatusBadRequest, "data must be encrypted at client side for text and url shareables and patched to /api/share/{id}/encrypted")
+			return
+		}
+	}
+
+	if body.AllowedEmails == nil || len(*body.AllowedEmails) == 0 {
+		body.AllowedEmails = nil
+		if body.NotificationParams != nil {
+			body.NotificationParams.NotifyTargetEmails = false
+		}
+	}
+
+	activeFrom := time.Now().UTC()
+	if body.TimeParams.ActiveFrom != nil {
+		activeFrom = body.TimeParams.ActiveFrom.UTC()
+	}
+
+	expiryAt := time.Now().Add(time.Hour * 24).UTC()
+	if body.TimeParams.ExpiryAt != nil {
+		expiryAt = body.TimeParams.ExpiryAt.UTC()
+	}
+
+	if expiryAt.Compare(time.Now()) < 0 {
+		h.respondJSON(w, http.StatusBadRequest, "expiry must be in the future")
+		return
+	}
+
+	if activeFrom.Compare(expiryAt) > 0 {
+		h.respondJSON(w, http.StatusBadRequest, "active from must be before expiry")
+		return
+	}
+
+	options, err := h.buildOptions(body)
+	if err != nil {
+		h.respondJSON(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	userID, err := h.userIDFromContext(r.Context())
+	if err != nil {
+		h.respondJSON(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	if body.Name == nil || *(body.Name) == "" {
+		name := "Random Shareable"
+		body.Name = &name
+	}
+
+	shareable, err := h.shareableService.CreateShareable(
+		r.Context(),
+		*body.Name, // If its null or empty, it will be set to "Random Shareable"
+		userID,
+		r.RemoteAddr,
+		string(body.Type),
+		body.Data,
+		expiryAt,
+		activeFrom,
+		options,
+	)
+	if err != nil || shareable == nil {
+		log.Printf("Failed to create shareable: %v", err)
+		h.respondJSON(w, http.StatusInternalServerError, errors.New("failed to create shareable"))
+		return
+	}
+
+	if body.Type != services.ShareableTypeFile {
+		resp := CreateShareableResponse{
+			Code: shareable.ID,
+		}
+		if body.Options.Encrypt {
+			h.respondJSON(w, http.StatusAccepted, resp)
+		} else {
+			h.respondJSON(w, http.StatusCreated, resp)
+		}
+		return
+	}
+
+	fileRequests := *(body.Files)
+	totalFiles := len(fileRequests)
+	fileUploads := make([]ShareableFileUpload, totalFiles)
+	for i, request := range fileRequests {
+		log.Printf("Processing file %d of %d", i+1, totalFiles)
+
+		fileId, signedUrl, err := h.shareableService.CreateShareableFile(
+			r.Context(),
+			shareable.ID,
+			shareable.UserID,
+			request.FileName,
+			request.FileSize,
+			request.ContentType,
+		)
+		if err != nil {
+			h.respondJSON(w, http.StatusInternalServerError, errors.New("failed to create shareable file on "+request.FileName))
+			// TODO DELETE SHAREABLE - SEND MESSAGE TO CHANNEL
+			return
+		}
+
+		fileUploads[i] = ShareableFileUpload{
+			FileName:  request.FileName,
+			FileID:    fileId,
+			UploadURL: signedUrl,
+		}
+		log.Printf("Prepared signed url for file %s to %s", request.FileName, signedUrl)
+	}
+
+	resp := CreateShareableResponse{
+		Uploads: fileUploads,
+		Code:    shareable.ID,
+	}
+
+	h.respondJSON(w, http.StatusCreated, resp)
+}
+
+func (h *ShareableHandler) buildOptions(body CreateShareableRequest) (map[services.ShareableOption]string, error) {
+	opts := map[services.ShareableOption]string{}
+
+	if body.Options != nil {
+		if body.Options.OnlyOnce {
+			opts[services.ShareableOptionOnlyOnce] = "true"
+		}
+		if body.Options.Encrypt {
+			opts[services.ShareableOptionEncrypt] = "true"
+			if body.Type != services.ShareableTypeFile {
+				// Set flag to indicate that the encrypted data is awaiting to be client side encrypted
+				// This will happen only for text and url shareables, files are already been taken care to be send from client
+				opts[services.ShareableOptionAwaitingEncryptedData] = "true"
+			}
+		}
+	}
+
+	if body.AllowedEmails != nil {
+		emailsJSON, err := json.Marshal(body.AllowedEmails)
+		if err != nil {
+			return nil, err
+		}
+
+		opts[services.ShareableOptionTargetEmails] = string(emailsJSON)
+	}
+	if body.NotificationParams != nil && body.NotificationParams.EmailNotificationOnOpen {
+		opts[services.ShareableOptionEmailNotificationOnOpen] = "true"
+	}
+
+	if body.TimeParams.ActiveFrom != nil {
+		opts[services.ShareableOptionActiveFrom] = body.TimeParams.ActiveFrom.Format(time.RFC3339)
+	}
+
+	return opts, nil
+}
+
+func (h *ShareableHandler) GetShareable(w http.ResponseWriter, r *http.Request) {
+	code := r.PathValue("code")
+
+	if code == "" {
+		http.Error(w, "invalid shareable code", http.StatusBadRequest)
+		return
+	}
+
+	fromCode, err := h.shareableService.GetShareableInfoFromCode(code)
+	if err != nil && fromCode == nil {
+		http.Error(w, "invalid shareable code", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.respondJSON(w, http.StatusOK, fromCode)
+}
+
+func (h *ShareableHandler) userIDFromContext(ctx context.Context) (string, error) {
+	claims, ok := ctx.Value(httpx.UserClaimsKey).(*jwt.MapClaims)
+	if !ok || claims == nil {
+		return "", errors.New("no user claims found in context")
+	}
+
+	userIDRaw, ok := (*claims)["sub"]
+	if !ok {
+		return "", errors.New("sub missing in claims")
+	}
+
+	userID, ok := userIDRaw.(string)
+	if !ok {
+		return "", errors.New("sub is not a string")
+	}
+
+	return userID, nil
+}
+
+func (h *ShareableHandler) respondJSON(w http.ResponseWriter, status int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(data)
+}

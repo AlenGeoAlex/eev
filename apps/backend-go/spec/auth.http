@@ -1,0 +1,3 @@
+### Generate a auth link
+GET http://localhost:8080/auth/google/
+

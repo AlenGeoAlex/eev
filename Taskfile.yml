@@ -1,0 +1,34 @@
+# https://taskfile.dev
+
+version: '3'
+
+includes:
+  backend:
+    dir: ./apps/backend-go/
+    taskfile: ./apps/backend-go/Taskfile.App.yml
+    optional: false
+    aliases: [api]
+
+  database:
+    dir: ./apps/backend-go/
+    taskfile: ./apps/backend-go/Taskfile.Database.yml
+    optional: false
+    aliases: [db]
+
+  docker-dev-tools:
+    dir: ./shared/dev-tools-docker
+    taskfile: ./shared/dev-tools-docker/Taskfile.DevTools.yml
+    optional: false
+    aliases: [ddt]
+
+vars:
+  APP_NAME: eev
+  APP_DESC: A simple app to share things across different device I have. Not specifically files, it maybe text, it maybe url it maybe image whatever. It will have a CLI, a web-front and maybe extensions across different os to easily create share things.
+  APP_VER: 0.0
+  DEVTOOLS_IMAGE_NAME: eev-docker-dev-tools
+
+tasks:
+  default:
+    cmds:
+      - echo "{{.GREETING}}"
+    silent: true
