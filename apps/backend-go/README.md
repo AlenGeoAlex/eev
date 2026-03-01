@@ -1,39 +1,23 @@
-# eev
+# eev / backend
 
-A personal content sharing tool that supports text, URLs, and files — not just files like everything else.
+The API server for eev. Built in Go — this is my first Go project, so keep that in mind.
 
-## Why
+## What it does
 
-Sharing a URL or a piece of text across devices usually means dumping it into an email draft and copying it over. eev cuts that out entirely.
-
-Share something, get a 6-digit code. On any other device, go to `e.alenalex.me`, enter the code — done. If it's a URL, it takes you straight there.
-
-## Clients
-
-| Client | Status | Use case |
-|--------|--------|----------|
-| Web | Planned | Universal, works on any device |
-| Apple Shortcut | Planned | Quick share from iPhone/iPad/Mac |
-| TUI | Planned | Terminal-first workflow on laptops |
-
-## What you can share
-
-- **Text** — snippets, notes, anything
-- **URLs** — links you want on another device
-- **Files** — when you actually need to move a file
-
-## Self-hosted
-
-eev is built for personal use. You run your own instance, your data stays yours.
+- Auth
+- Creating shareables (text, URLs, files)
+- Viewing/retrieving shareables by 6-digit code
+- File storage via S3-compatible backend
 
 ## Stack
 
-- **Backend** — Go
-- **Storage** — S3-compatible (works with Cloudflare R2, LocalStack, AWS S3)
+- **Go**
+- **SQLite** — simple, no infra overhead
+- **S3-compatible storage** — for file shareables (Cloudflare R2, AWS S3, or LocalStack locally)
 
 ## Local Development
 
-Start a local S3-compatible stack:
+Start a local S3 stack:
 
 ```bash
 docker compose up -d
@@ -51,3 +35,13 @@ Run the server:
 ```bash
 go run ./cmd/server
 ```
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `S3_ACCESS_KEY` | S3 access key | |
+| `S3_SECRET_KEY` | S3 secret key | |
+| `S3_REGION` | S3 region | `auto` |
+| `S3_BUCKET` | S3 bucket name | |
+| `S3_ENDPOINT_URL` | Custom S3 endpoint (for R2, LocalStack) | |
