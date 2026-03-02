@@ -12,3 +12,11 @@ tasks:
     desc: Build migration binary
     cmds:
       - go build -o bin/migrate ./cmd/migrator
+
+  swagger:generate:
+    desc: Generate OpenAPI spec using swag in Docker
+    cmds:
+      - mkdir -p ../../docs/api-spec
+      - docker run --rm -v $(pwd):/code -w /code ghcr.io/swaggo/swag:latest init \
+        -g cmd/app/main.go \
+        -o ../../docs/api-spec

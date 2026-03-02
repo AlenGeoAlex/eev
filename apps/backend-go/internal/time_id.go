@@ -6,13 +6,13 @@ import (
 	"time"
 )
 
-const charset = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 func base62Encode(num int64, length int) string {
 	result := make([]byte, length)
 	for i := length - 1; i >= 0; i-- {
-		result[i] = charset[num%62]
-		num /= 62
+		result[i] = charset[num%36]
+		num /= 36
 	}
 	return string(result)
 }
@@ -20,7 +20,7 @@ func base62Encode(num int64, length int) string {
 func randomBase62(length int) string {
 	b := make([]byte, length)
 	for i := range b {
-		n, _ := rand.Int(rand.Reader, big.NewInt(62))
+		n, _ := rand.Int(rand.Reader, big.NewInt(36))
 		b[i] = charset[n.Int64()]
 	}
 	return string(b)

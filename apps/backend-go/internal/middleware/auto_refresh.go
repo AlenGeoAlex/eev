@@ -1,9 +1,12 @@
 package middleware
 
 import (
+	"backend-go/internal"
 	"backend-go/internal/httpx"
 	"backend-go/internal/services"
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 )
 
@@ -14,13 +17,13 @@ func AutoRefreshMiddleware(auth *services.AuthService) func(next http.Handler) h
 
 			accessCookie, err := r.Cookie(string(httpx.AccessTokenCookieKey))
 			if err != nil {
-				http.Error(w, "Unauthorized [NAT]", http.StatusUnauthorized)
+				respondError(w, http.StatusUnauthorized, "Unauthorized [NAT]")
 				return
 			}
 
 			refreshCookie, err := r.Cookie(string(httpx.RefreshTokenCookieKey))
 			if err != nil {
-				http.Error(w, "Unauthorized [NRT]", http.StatusUnauthorized)
+				respondError(w, http.StatusUnauthorized, "Unauthorized [NRT]")
 				return
 			}
 
@@ -31,9 +34,14 @@ func AutoRefreshMiddleware(auth *services.AuthService) func(next http.Handler) h
 				return
 			}
 
+			if !errors.Is(err, services.ErrTokenExpired) {
+				respondError(w, http.StatusUnauthorized, "Unauthorized [TAMPERING]")
+				return
+			}
+
 			newAccess, newRefresh, _, err := auth.Refresh(r.Context(), accessCookie.Value, refreshCookie.Value)
 			if err != nil {
-				http.Error(w, "Unauthorized [FR]", http.StatusUnauthorized)
+				respondError(w, http.StatusUnauthorized, "Unauthorized [FR]")
 				return
 			}
 
@@ -55,7 +63,7 @@ func AutoRefreshMiddleware(auth *services.AuthService) func(next http.Handler) h
 
 			newClaims, err := auth.ValidateAccessToken(newAccess, false)
 			if err != nil {
-				http.Error(w, "Unauthorized [FNT]", http.StatusUnauthorized)
+				respondError(w, http.StatusUnauthorized, "Unauthorized [FNT]")
 				return
 			}
 
@@ -63,4 +71,16 @@ func AutoRefreshMiddleware(auth *services.AuthService) func(next http.Handler) h
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func respondJSON(w http.ResponseWriter, status int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(data)
+}
+
+func respondError(w http.ResponseWriter, status int, message string) {
+	respondJSON(w, status, internal.ErrorResponse{
+		Message: message,
+	})
 }

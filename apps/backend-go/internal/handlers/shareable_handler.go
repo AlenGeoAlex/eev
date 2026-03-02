@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"backend-go/internal"
 	"backend-go/internal/httpx"
 	"backend-go/internal/services"
 	"context"
@@ -70,26 +71,40 @@ func NewShareableHandler(shareableService *services.ShareableService) *Shareable
 	return &ShareableHandler{shareableService: shareableService}
 }
 
-// CreateShareable handles the creation of a new shareable resource based on the request details provided by the client.
+// CreateShareable godoc
+// @Summary Create a new shareable
+// @Description Creates a new shareable resource (text, url, or file). Requires authentication via access_token cookie.
+// @Name CreateShareable
+// @Tags shareable
+// @Accept json
+// @Produce json
+// @Security CookieAuth
+// @Param request body CreateShareableRequest true "Create shareable request"
+// @Success 201 {object} CreateShareableResponse "Shareable created"
+// @Success 202 {object} CreateShareableResponse "Shareable created - awaiting encrypted data"
+// @Failure 400 {object} internal.ErrorResponse "Invalid request"
+// @Failure 401 {object} internal.ErrorResponse "Unauthorized"
+// @Failure 500 {object} internal.ErrorResponse "Internal server error"
+// @Router /share [post]
 func (h *ShareableHandler) CreateShareable(w http.ResponseWriter, r *http.Request) {
 	body, ok := r.Context().Value(httpx.BodyKey).(CreateShareableRequest)
 	if !ok {
-		http.Error(w, "missing request body", http.StatusInternalServerError)
+		h.respondError(w, http.StatusBadRequest, "Failed to parse request body")
 		return
 	}
 
 	if body.Type == services.ShareableTypeFile {
 		if body.Data != nil && *body.Data != "" {
-			h.respondJSON(w, http.StatusBadRequest, "data must be empty for file type")
+			h.respondError(w, http.StatusBadRequest, "Data must be empty for file type")
 			return
 		}
 		if body.Files == nil || len(*body.Files) == 0 {
-			h.respondJSON(w, http.StatusBadRequest, "at least one file is required for file type")
+			h.respondError(w, http.StatusBadRequest, "At least one file is required for file type")
 			return
 		}
 	} else {
 		if body.Options.Encrypt && body.Data != nil {
-			h.respondJSON(w, http.StatusBadRequest, "data must be encrypted at client side for text and url shareables and patched to /api/share/{id}/encrypted")
+			h.respondError(w, http.StatusBadRequest, "Data must be encrypted at client side for text and url shareables and patched to /api/share/{id}/encrypted")
 			return
 		}
 	}
@@ -112,24 +127,24 @@ func (h *ShareableHandler) CreateShareable(w http.ResponseWriter, r *http.Reques
 	}
 
 	if expiryAt.Compare(time.Now()) < 0 {
-		h.respondJSON(w, http.StatusBadRequest, "expiry must be in the future")
+		h.respondError(w, http.StatusBadRequest, "Expiry must be in the future")
 		return
 	}
 
 	if activeFrom.Compare(expiryAt) > 0 {
-		h.respondJSON(w, http.StatusBadRequest, "active from must be before expiry")
+		h.respondError(w, http.StatusBadRequest, "Active from must be before expiry")
 		return
 	}
 
 	options, err := h.buildOptions(body)
 	if err != nil {
-		h.respondJSON(w, http.StatusBadRequest, err.Error())
+		h.respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	userID, err := h.userIDFromContext(r.Context())
 	if err != nil {
-		h.respondJSON(w, http.StatusUnauthorized, err.Error())
+		h.respondError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
 
@@ -151,7 +166,7 @@ func (h *ShareableHandler) CreateShareable(w http.ResponseWriter, r *http.Reques
 	)
 	if err != nil || shareable == nil {
 		log.Printf("Failed to create shareable: %v", err)
-		h.respondJSON(w, http.StatusInternalServerError, errors.New("failed to create shareable"))
+		h.respondError(w, http.StatusInternalServerError, "failed to create shareable")
 		return
 	}
 
@@ -182,7 +197,7 @@ func (h *ShareableHandler) CreateShareable(w http.ResponseWriter, r *http.Reques
 			request.ContentType,
 		)
 		if err != nil {
-			h.respondJSON(w, http.StatusInternalServerError, errors.New("failed to create shareable file on "+request.FileName))
+			h.respondError(w, http.StatusInternalServerError, "Failed to create shareable file on "+request.FileName)
 			// TODO DELETE SHAREABLE - SEND MESSAGE TO CHANNEL
 			return
 		}
@@ -239,21 +254,34 @@ func (h *ShareableHandler) buildOptions(body CreateShareableRequest) (map[servic
 	return opts, nil
 }
 
+// GetShareable godoc
+// @Summary Get shareable by code
+// @Description Retrieves public shareable information using its unique code.
+// @Tags shareable
+// @Accept json
+// @Produce json
+// @Param code path string true "Shareable code"
+// @Success 200 {object} services.ShareableCode "Shareable info"
+// @Failure 400 {object} internal.ErrorResponse "Invalid code"
+// @Failure 404 {object} internal.ErrorResponse "Shareable not found"
+// @Failure 500 {object} internal.ErrorResponse "Internal server error"
+// @Router /share/{code} [get]
 func (h *ShareableHandler) GetShareable(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 
 	if code == "" {
 		http.Error(w, "invalid shareable code", http.StatusBadRequest)
+		h.respondError(w, http.StatusBadRequest, "No shareable code provided in path")
 		return
 	}
 
 	fromCode, err := h.shareableService.GetShareableInfoFromCode(code)
 	if err != nil && fromCode == nil {
-		http.Error(w, "invalid shareable code", http.StatusNotFound)
+		h.respondError(w, http.StatusNotFound, "Shareable not found")
 		return
 	}
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -283,4 +311,10 @@ func (h *ShareableHandler) respondJSON(w http.ResponseWriter, status int, data i
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(data)
+}
+
+func (h *ShareableHandler) respondError(w http.ResponseWriter, status int, message string) {
+	h.respondJSON(w, status, internal.ErrorResponse{
+		Message: message,
+	})
 }

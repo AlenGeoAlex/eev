@@ -16,6 +16,12 @@
     let avatarUrl = $state<string | undefined>(undefined);
     let email = $state<string | undefined>(undefined);
 
+    let imageFailed = $state(false);
+
+    function handleError() {
+        imageFailed = true;
+    }
+
     const initials = $derived(() => {
         if (!email) return "AN";
         return email.slice(0, 2).toUpperCase();
@@ -46,7 +52,7 @@
                 }
 
                 status = "error";
-                message = `Something went wrong (${response.message.trim()}). Please try again.`;
+                message = `Something went wrong (${response.message?.trim() ?? "N/A"}). Please try again.`;
             } else {
                 status = "error";
                 message = "No authorisation code received.";
@@ -62,7 +68,6 @@
 <div class="flex min-h-screen items-center justify-center">
     <div class="flex w-full max-w-sm flex-col items-center gap-5 rounded-2xl border border-black/5 dark:border-white/10 px-10 py-12 shadow-sm">
 
-        <!-- Icon area -->
         <div class="relative flex h-20 w-20 items-center justify-center">
 
             {#if status === "loading"}
@@ -76,14 +81,13 @@
 
                     <Avatar class="relative h-20 w-20 border-2 border-green-500/40 shadow-lg ring-4 ring-green-500/20">
                         {#if avatarUrl}
-                            <AvatarImage src={avatarUrl} alt="User avatar" />
+                            <AvatarImage src={avatarUrl} alt="User avatar" onerror={handleError} />
                         {/if}
                         <AvatarFallback class="text-lg font-semibold">
                             {initials}
                         </AvatarFallback>
                     </Avatar>
 
-                    <!-- Success badge -->
                     <div class="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-green-500 shadow-md ring-2 ring-white dark:ring-black">
                         <svg
                                 class="h-4 w-4 text-white"
@@ -123,7 +127,6 @@
             {/if}
         </div>
 
-        <!-- Retry link -->
         {#if status === "error"}
             <a
             href="/auth"

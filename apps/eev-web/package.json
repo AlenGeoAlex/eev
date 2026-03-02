@@ -37,6 +37,7 @@
 	"dependencies": {
 		"date-fns": "^4.1.0",
 		"mode-watcher": "^1.1.0",
-		"zod": "^4.3.6"
+		"zod": "^4.3.6",
+		"ts-client": "file:../../shared/ts-client"
 	}
 }

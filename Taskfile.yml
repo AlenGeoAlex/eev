@@ -1,6 +1,6 @@
 # https://taskfile.dev
 
-version: '3'
+version: "3"
 
 includes:
   backend:
@@ -21,6 +21,12 @@ includes:
     optional: false
     aliases: [ddt]
 
+  codegen:
+    dir: ./
+    taskfile: ./Taskfile.Codegen.yml
+    optional: false
+    aliases: [cg]
+
 vars:
   APP_NAME: eev
   APP_DESC: A simple app to share things across different device I have. Not specifically files, it maybe text, it maybe url it maybe image whatever. It will have a CLI, a web-front and maybe extensions across different os to easily create share things.
@@ -32,3 +38,4 @@ tasks:
     cmds:
       - echo "{{.GREETING}}"
     silent: true
+

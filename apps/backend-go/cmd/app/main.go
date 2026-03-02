@@ -22,6 +22,31 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// @title	eev-backend
+// @version	1.0
+// @description	Backend service for eev
+//
+//	@contact.name	Alen Alex
+//	@contact.url	http://alenalex.me
+//	@contact.email	contact@alenalex.me
+//
+//	@host	https://e.alenalex/me
+//	@basePath	/api/
+//
+// @schemes http https
+//
+// @externalDocs.description App Documentation
+// @externalDocs.url https://github.com/AlenGeoAlex/eev/docs
+//
+// @securityDefinitions.apikey CookieAuth
+// @in cookie
+// @name access_token
+// @description This API uses cookie-based authentication. Clients must send the `access_token` cookie for auth.
+//
+// @securityDefinitions.apikey RefreshTokenAuth
+// @in cookie
+// @name refresh_token
+// @description Refresh token cookie (HttpOnly). Sent only to refresh endpoint.
 func main() {
 	appConfig := config.NewAppConfig()
 	ctx := context.Background()
@@ -72,7 +97,7 @@ func main() {
 	r.Group(func(r chi.Router) {
 		r.Get("/share/{code}", shareableHandler.GetShareable)
 
-		r.Get("/auth/google", authHandler.GoogleLogin)
+		r.Get("/auth/google/login", authHandler.GoogleLogin)
 		r.With(
 			httpx.ValidateBody[handlers.GoogleCallbackRequest],
 		).Post("/auth/google/callback", authHandler.GoogleCallback)

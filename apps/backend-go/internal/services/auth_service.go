@@ -29,6 +29,11 @@ type AuthService struct {
 	queries     *sqlite_eev.Queries
 }
 
+var (
+	ErrTokenExpired = errors.New("token expired")
+	ErrTokenInvalid = errors.New("token invalid")
+)
+
 func NewAuthService(cfg config.GoogleOAuthConfig, jwt config.JwtConfig, queries *sqlite_eev.Queries) *AuthService {
 	oauthConfig := &oauth2.Config{
 		ClientID:     cfg.ClientID,
@@ -45,18 +50,18 @@ func NewAuthService(cfg config.GoogleOAuthConfig, jwt config.JwtConfig, queries 
 }
 
 // GetAuthURL returns the URL to redirect the user to for Google login
-func (receiver AuthService) GetAuthURL(state string) string {
-	return receiver.oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline)
+func (s AuthService) GetAuthURL(state string) string {
+	return s.oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline)
 }
 
 // ValidateAndGetOAuthUser exchanges the code from Google's callback and returns the user
-func (receiver AuthService) ValidateAndGetOAuthUser(ctx context.Context, code string) (*GoogleUser, error) {
-	token, err := receiver.oauthConfig.Exchange(ctx, code)
+func (s AuthService) ValidateAndGetOAuthUser(ctx context.Context, code string) (*GoogleUser, error) {
+	token, err := s.oauthConfig.Exchange(ctx, code)
 	if err != nil {
 		return nil, errors.New("failed to exchange token: " + err.Error())
 	}
 
-	httpClient := receiver.oauthConfig.Client(ctx, token)
+	httpClient := s.oauthConfig.Client(ctx, token)
 
 	svc, err := googleoauth2.NewService(ctx, option.WithHTTPClient(httpClient))
 	if err != nil {
@@ -84,7 +89,6 @@ func (s AuthService) GenerateTokenPair(
 	pairJTI := uuid.New()
 	refreshExpiry := now.Add(s.jwtConfig.RefreshTTL)
 
-	// Access Token
 	accessClaims := jwt.MapClaims{
 		"sub":   userID.String(),
 		"email": email,
@@ -101,7 +105,6 @@ func (s AuthService) GenerateTokenPair(
 		return "", "", time.Time{}, err
 	}
 
-	// Refresh Token
 	refreshClaims := jwt.MapClaims{
 		"sub": userID.String(),
 		"jti": pairJTI.String(), // SAME JTI
@@ -117,7 +120,6 @@ func (s AuthService) GenerateTokenPair(
 		return "", "", time.Time{}, err
 	}
 
-	// Store refresh in DB
 	err = s.queries.InsertRefreshToken(context.Background(), sqlite_eev.InsertRefreshTokenParams{
 		Jti:       pairJTI.String(),
 		UserID:    userID.String(),
@@ -131,42 +133,35 @@ func (s AuthService) GenerateTokenPair(
 	return signedAccess, signedRefresh, refreshExpiry, nil
 }
 
-func (s AuthService) ValidateAccessToken(tokenStr string, validateExpiry bool) (*jwt.MapClaims, error) {
-	shouldValidateExpiry := validateExpiry
+func (s AuthService) ValidateAccessToken(
+	tokenStr string,
+	validateExpiry bool,
+) (*jwt.MapClaims, error) {
 
 	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("unexpected signing method")
+			return nil, ErrTokenInvalid
 		}
 		return []byte(s.jwtConfig.Secret), nil
 	})
 
 	if err != nil {
-		return nil, err
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			if validateExpiry {
+				return nil, ErrTokenExpired
+			}
+		} else {
+			return nil, ErrTokenInvalid
+		}
 	}
 
 	if !token.Valid {
-		return nil, errors.New("invalid access token")
+		return nil, ErrTokenInvalid
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
-		return nil, errors.New("invalid token claims")
-	}
-
-	if shouldValidateExpiry {
-		if expRaw, ok := claims["exp"]; ok {
-			expFloat, ok := expRaw.(float64)
-			if !ok {
-				return nil, errors.New("invalid exp claim")
-			}
-
-			if time.Now().Unix() > int64(expFloat) {
-				return nil, errors.New("token expired")
-			}
-		} else {
-			return nil, errors.New("exp claim missing")
-		}
+		return nil, ErrTokenInvalid
 	}
 
 	return &claims, nil

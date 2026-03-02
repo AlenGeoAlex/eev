@@ -1,10 +1,11 @@
 package httpx
 
 import (
+	"backend-go/internal"
 	"backend-go/internal/validation"
 	"context"
 	"encoding/json"
-	"log"
+	"fmt"
 	"net/http"
 )
 
@@ -19,17 +20,28 @@ func ValidateBody[T any](next http.Handler) http.Handler {
 		decoder.DisallowUnknownFields()
 
 		if err := decoder.Decode(&body); err != nil {
-			log.Println(err)
-			http.Error(w, "invalid JSON body", http.StatusBadRequest)
+			respondError(w, http.StatusBadRequest, fmt.Sprintf("invalid request body: %s", err))
 			return
 		}
 
 		if err := validation.Validate.Struct(body); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			respondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		ctx := context.WithValue(r.Context(), BodyKey, body)
 		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func respondJSON(w http.ResponseWriter, status int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(data)
+}
+
+func respondError(w http.ResponseWriter, status int, message string) {
+	respondJSON(w, status, internal.ErrorResponse{
+		Message: message,
 	})
 }

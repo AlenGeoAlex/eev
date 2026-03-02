@@ -49,10 +49,11 @@
     import { format, formatDistance, formatRelative, subDays } from 'date-fns'
     import {zod4} from "sveltekit-superforms/adapters";
     import * as Tooltip from "$lib/components/ui/tooltip";
+    import {ShareableService} from "$lib/services/shareable.service";
 
     let { data }: PageProps = $props();
     let dragOver = $state(false);
-    let uploadedFile: File | null = $state(null);
+    let uploadedFiles: File[] = $state([]);
     let textValue = $state("");
     const { form, errors, validate, submitting } = superForm(
         defaults(zod4(shareSchema)),
@@ -60,47 +61,19 @@
             SPA: true,
             validators: zod4(shareSchema),
             dataType: "json",
-            onUpdate({ form }) {
-                if (!form.valid) return;
-                handleSubmit(form.data);
-            },
+
         }
     );
+
 
     let submittingToBackend = $state(false);
     let submitError = $state("");
     let submitSuccess = $state(false);
 
-    let hasFile = $derived(uploadedFile !== null);
+    let hasFiles = $derived(uploadedFiles.length > 0);
     let hasText = $derived(textValue.trim() !== "");
-
-    async function handleSubmit(formData: typeof $form) {
-        submittingToBackend = true;
-        submitError = "";
-        submitSuccess = false;
-
-        try {
-            const payload = {
-                preferences: formData,
-                ...(uploadedFile ? { fileName: uploadedFile.name } : {}),
-                ...(textValue ? { text: textValue } : {}),
-            };
-
-            const res = await fetch("/api/share", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
-
-            if (!res.ok) throw new Error(`Server responded with ${res.status}`);
-
-            submitSuccess = true;
-        } catch (err) {
-            submitError = err instanceof Error ? err.message : "Something went wrong.";
-        } finally {
-            submittingToBackend = false;
-        }
-    }
+    let hasErrors = $derived(Object.keys($errors).length > 0);
+    let canSubmit = $derived(hasFiles || hasText);
 
     function handleDragOver(e: DragEvent) {
         e.preventDefault();
@@ -112,16 +85,30 @@
     function handleDrop(e: DragEvent) {
         e.preventDefault();
         dragOver = false;
-        const file = e.dataTransfer?.files[0];
-        if (file) uploadedFile = file;
+        const files = e.dataTransfer?.files;
+        if (files && files.length > 0) {
+            uploadedFiles = [...uploadedFiles, ...Array.from(files)];
+        }
     }
     function handleFileInput(e: Event) {
         const input = e.target as HTMLInputElement;
-        const file = input.files?.[0];
-        if (file) uploadedFile = file;
+        const files = input.files;
+        if (files && files.length > 0) {
+            uploadedFiles = [...uploadedFiles, ...Array.from(files)];
+        }
+        input.value = "";
     }
-    function clearFile() {
-        uploadedFile = null;
+    function removeFile(index: number) {
+        uploadedFiles = uploadedFiles.filter((_, i) => i !== index);
+    }
+    function clearFiles() {
+        uploadedFiles = [];
+    }
+
+    function formatFileSize(bytes: number): string {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     }
 
     let emailInput = $state("");
@@ -152,13 +139,47 @@
         $form.targetEmails = $form.targetEmails.filter((t) => t !== email);
     }
 
-    // async function onFormSubmit(e: SubmitEvent) {
-    //     e.preventDefault();
-    //     await validate($form);
-    // }
+    function inferType() : "text" | "url" | "file" {
+        if (uploadedFiles.length > 0) return "file";
+
+        const text = textValue.trim();
+        try {
+            new URL(text);
+            return "url";
+        } catch(e) {
+            return "text";
+        }
+    }
+
+    async function onFormSubmit(e: SubmitEvent) {
+        e.preventDefault();
+        if (hasErrors) return;
+        const type = inferType();
+        const formData = $form;
+        submittingToBackend = true;
+        const response = await ShareableService.getInstance().create({
+            name: undefined,
+            type: type,
+            data: type === 'file' ? uploadedFiles : textValue,
+            expiry_at: new Date(formData.expiresAt),
+            active_from: formData.activeFrom ? new Date(formData.activeFrom) : new Date(),
+            email_notification_on_open: formData.notifyOnOpen,
+            encrypt: formData.encrypt,
+            allowed_emails: formData.targetEmails,
+            only_once: formData.allowOnce,
+            notify_target_emails: formData.notifyTargetUsers
+        } as any)
+
+        if(response.status === 'created'){
+            submitSuccess = true;
+            setTimeout(() => {
+                submitSuccess = false;
+            }, 3000);
+        }
+    }
 </script>
 
-<form onsubmit={onFormSubmit}>
+<form onsubmit={(event) => onFormSubmit(event)}>
     <div class="min-h-screen bg-background p-8 flex flex-col items-center justify-center gap-6">
 
         <Card.Root class="w-full max-w-4xl">
@@ -187,39 +208,62 @@
                     <Tooltip.Trigger class="flex">
                         <Card.Root class="flex flex-col flex-1 transition-opacity {hasText ? 'opacity-50 pointer-events-none' : ''}">
                             <Card.Header>
-                                <Card.Title class="text-base">Upload File</Card.Title>
-                                <Card.Description>Drag & drop or click to select a file.</Card.Description>
+                                <Card.Title class="text-base">Upload Files</Card.Title>
+                                <Card.Description>Drag & drop or click to select one or more files.</Card.Description>
                             </Card.Header>
-                            <Card.Content class="flex-1">
-                                {#if !uploadedFile}
-                                    <label
-                                            class="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-lg cursor-pointer transition-colors
-                                {dragOver ? 'border-primary bg-primary/5' : 'border-border bg-muted/30 hover:bg-muted/50 hover:border-muted-foreground/40'}"
-                                            ondragover={handleDragOver}
-                                            ondragleave={handleDragLeave}
-                                            ondrop={handleDrop}
-                                    >
-                                        <div class="flex flex-col items-center gap-2 text-muted-foreground pointer-events-none select-none">
-                                            <Upload class="h-7 w-7" />
-                                            <p class="text-sm font-medium">Drop file here</p>
-                                            <p class="text-xs">or click to browse</p>
-                                        </div>
-                                        <input type="file" disabled={hasText} class="hidden" onchange={handleFileInput} />
-                                    </label>
-                                {:else}
-                                    <div class="flex flex-col items-center justify-center w-full h-36 border border-border rounded-lg bg-muted/30 gap-3 px-4">
-                                        <FileText class="h-8 w-8 text-primary" />
-                                        <p class="text-sm font-medium text-center truncate w-full">{uploadedFile.name}</p>
-                                        <Button variant="ghost" size="sm" onclick={clearFile} class="text-xs text-muted-foreground h-7">
-                                            Remove
-                                        </Button>
+                            <Card.Content class="flex-1 flex flex-col gap-3">
+                                <!-- Drop zone — always visible so more files can be added -->
+                                <label
+                                        class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-lg cursor-pointer transition-colors
+                                    {dragOver ? 'border-primary bg-primary/5' : 'border-border bg-muted/30 hover:bg-muted/50 hover:border-muted-foreground/40'}"
+                                        ondragover={handleDragOver}
+                                        ondragleave={handleDragLeave}
+                                        ondrop={handleDrop}
+                                >
+                                    <div class="flex flex-col items-center gap-2 text-muted-foreground pointer-events-none select-none">
+                                        <Upload class="h-6 w-6" />
+                                        <p class="text-sm font-medium">
+                                            {hasFiles ? "Drop more files here" : "Drop files here"}
+                                        </p>
+                                        <p class="text-xs">or click to browse</p>
+                                    </div>
+                                    <input type="file" multiple disabled={hasText} class="hidden" onchange={handleFileInput} />
+                                </label>
+
+                                <!-- File list -->
+                                {#if hasFiles}
+                                    <div class="flex flex-col gap-1.5">
+                                        {#each uploadedFiles as file, index}
+                                            <div class="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+                                                <FileText class="h-4 w-4 shrink-0 text-primary" />
+                                                <div class="flex-1 min-w-0">
+                                                    <p class="text-sm font-medium truncate">{file.name}</p>
+                                                    <p class="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                                                </div>
+                                                <button
+                                                        type="button"
+                                                        onclick={() => removeFile(index)}
+                                                        class="shrink-0 rounded-full hover:bg-muted-foreground/20 p-1 transition-colors text-muted-foreground hover:text-foreground"
+                                                        aria-label="Remove {file.name}"
+                                                >
+                                                    <X class="h-3.5 w-3.5" />
+                                                </button>
+                                            </div>
+                                        {/each}
+                                        <button
+                                                type="button"
+                                                onclick={clearFiles}
+                                                class="text-xs text-muted-foreground hover:text-foreground text-right transition-colors"
+                                        >
+                                            Remove all
+                                        </button>
                                     </div>
                                 {/if}
                             </Card.Content>
                         </Card.Root>
                     </Tooltip.Trigger>
                     <Tooltip.Content>
-                        <p>Only one share can be made at a time. Please remove the text to share a file</p>
+                        <p>Only one share can be made at a time. Please remove the text to share files.</p>
                     </Tooltip.Content>
                 </Tooltip.Root>
             </Tooltip.Provider>
@@ -237,9 +281,9 @@
             </div>
 
             <Tooltip.Provider>
-                <Tooltip.Root disabled={!hasFile}>
+                <Tooltip.Root disabled={!hasFiles}>
                     <Tooltip.Trigger class="flex">
-                        <Card.Root class="flex flex-col flex-1 transition-opacity {hasFile ? 'opacity-50 pointer-events-none' : ''}">
+                        <Card.Root class="flex flex-col flex-1 transition-opacity {hasFiles ? 'opacity-50 pointer-events-none' : ''}">
                             <Card.Header>
                                 <Card.Title class="text-base">Share a text</Card.Title>
                                 <Card.Description>Write the text you want to share.</Card.Description>
@@ -248,7 +292,7 @@
                                 <Label for="note">Your text</Label>
                                 <Textarea
                                         id="note"
-                                        disabled={hasFile}
+                                        disabled={hasFiles}
                                         placeholder="Type your text content here..."
                                         class="resize-none flex-1 min-h-30"
                                         bind:value={textValue}
@@ -258,7 +302,7 @@
                         </Card.Root>
                     </Tooltip.Trigger>
                     <Tooltip.Content>
-                        <p>Only one share can be made at a time. Please remove the file to share text</p>
+                        <p>Only one share can be made at a time. Please remove the files to share text.</p>
                     </Tooltip.Content>
                 </Tooltip.Root>
             </Tooltip.Provider>
@@ -428,7 +472,7 @@
                         $form.notifyTargetUsers = false;
                         $form.allowOnce = true;
                         $form.encrypt = false;
-                        uploadedFile = null;
+                        uploadedFiles = [];
                         textValue = "";
                         submitSuccess = false;
                         submitError = "";
@@ -436,7 +480,7 @@
                     >
                         Reset
                     </Button>
-                    <Button type="submit" disabled={submittingToBackend}>
+                    <Button type="submit"  disabled={submittingToBackend || hasErrors || canSubmit === false}>
                         {submittingToBackend ? "Sharing..." : "Share"}
                     </Button>
                 </div>

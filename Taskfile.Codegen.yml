@@ -1,0 +1,48 @@
+version: '3'
+
+tasks:
+  swagger:convert:
+    desc: Convert Swagger 2.0 spec to OpenAPI 3.0
+    cmds:
+      - mkdir -p ./docs/api-spec-v3
+      - docker run --rm
+        -v $(pwd)/docs/api-spec:/input
+        -v $(pwd)/docs/api-spec-v3:/output
+        node:alpine
+        npx --yes swagger2openapi
+        /input/swagger.json
+        -o /output/openapi.json
+
+  ts-client:generate:
+    desc: Generate TypeScript Fetch client from OpenAPI spec
+    cmds:
+      - mkdir -p ./shared/ts-client
+      - docker run --rm
+          -v $(pwd)/docs/api-spec-v3:/input
+          -v $(pwd)/shared/ts-client:/output
+          openapitools/openapi-generator-cli generate
+          -i /input/openapi.json
+          -g typescript-fetch
+          -o /output
+          --additional-properties=supportsES6=true,typescriptThreePlus=true
+
+  swagger:generate:
+    desc: Generate OpenAPI spec using swag in Docker
+    cmds:
+      - mkdir -p ./docs/api-spec
+      - docker run --rm
+        -v $(pwd)/apps/backend-go:/code
+        -v $(pwd)/docs/api-spec:/output
+        -w /code
+        ghcr.io/swaggo/swag:latest init
+        -g cmd/app/main.go
+        -o /output
+
+
+  codegen:
+    desc: Full pipeline - generate spec, convert to OAS3, generate TS client
+    cmds:
+      - task: swagger:generate
+      - task: swagger:convert
+      - task: ts-client:generate
+      - cmd: cd apps/eev-web && pnpm install

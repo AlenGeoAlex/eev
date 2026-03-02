@@ -1,6 +1,7 @@
-import {getApiUrl} from "./app-service.ts";
+import { AppService} from "./app-service.ts";
 import {get, type Readable, readonly, writable, type Writable} from "svelte/store";
-import {string} from "zod";
+import {ResponseError} from "../../../../../shared/ts-client";
+
 
 export class AuthService {
 
@@ -18,33 +19,39 @@ export class AuthService {
     }
 
     public async me(){
-        const res = await fetch("/api/me");
-        if(!res.ok){
+        try {
+            const meResponse = await AppService.instance.apis.user.meGet();
+            if(!meResponse){
+                return undefined;
+            }
+
+            this._authStore.set({
+                id: meResponse.id!,
+                email: meResponse.email!,
+                avatar: meResponse.avatar!
+            });
+            console.log("Auth store set");
+            return meResponse;
+        }catch (e){
+            const error = e as ResponseError;
+            //error.response.status === 401
+            console.error("Error fetching user", e);
             return undefined;
         }
-
-        const newVar = await res.json() as IIdentity;
-        if (!newVar) {
-            return undefined;
-        }
-
-        this._authStore.set(newVar);
-        console.log("Auth store set", newVar);
-        return newVar;
     }
 
     public async getGoogleAuthUrl() : Promise<string | undefined>{
-        const res = await fetch('/api/auth/google');
-        if(!res.ok){
+        try {
+            const apiResponse = await AppService.instance.apis.auth.authGoogleLoginGet();
+            if(!apiResponse){
+                return undefined;
+            }
+
+            return apiResponse.url;
+        }catch (e){
+            console.error("Error fetching auth url", e);
             return undefined;
         }
-
-        const data = await res.json();
-        if (data.url) {
-            return data.url;
-        }
-
-        return undefined;
     }
 
     public get authStore() : Readable<IIdentity | undefined> {
@@ -64,36 +71,48 @@ export class AuthService {
         }
     }
 
-    public async validateCallback(code: string, state: string) : Promise<ValidateCallbackResult>{
-        const response = await fetch('/api/auth/google/callback', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ code, state }),
-        });
-        if(!response.ok){
+    public async validateCallback(code: string, state: string) : Promise<{
+        success: boolean
+        message?: string
+        id?: string
+        email?: string
+        avatar?: string
+    }> {
+
+        try {
+            const validateResponse = await AppService.instance.apis.auth.authGoogleCallbackPost({
+                handlersGoogleCallbackRequest: {
+                    code: code,
+                    state: state
+                }
+            });
+
+            if (!validateResponse) {
+                return {
+                    success: false,
+                    message: "Unable to validate callback"
+                }
+            }
+
+            this._authStore.set({
+                id: validateResponse.id!,
+                email: validateResponse.email!,
+                avatar: validateResponse.avatar!
+            })
+            console.log("Auth store set");
+
+            return {
+                success: true,
+                id: validateResponse.id,
+                email: validateResponse.email,
+                avatar: validateResponse.avatar
+            }
+        } catch (e) {
+            console.error("Error validating callback", e);
             return {
                 success: false,
-                message: await response.text()
+                message: "e."
             }
-        }
-
-        const meResponse = await this.me();
-        if(!meResponse){
-            return {
-                success: false,
-                message: "Unable to validate callback"
-            }
-        }
-
-        const data = meResponse;
-        this._authStore.set(data);
-        return {
-            success: true,
-            id: data.id,
-            email: data.email,
-            avatar: data.avatar
         }
     }
 }
@@ -103,7 +122,3 @@ export interface IIdentity {
     email: string;
     avatar: string;
 }
-
-type ValidateCallbackResult =
-    | { success: true; id: string; email: string; avatar?: string }
-    | { success: false; message: string };

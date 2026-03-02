@@ -1,0 +1,339 @@
+basePath: /api/
+definitions:
+  handlers.CreateShareableRequest:
+    properties:
+      allowed_emails:
+        items:
+          type: string
+        type: array
+      data:
+        type: string
+      files:
+        items:
+          $ref: '#/definitions/handlers.ShareableFileRequest'
+        type: array
+      name:
+        type: string
+      notification_params:
+        $ref: '#/definitions/handlers.CreateShareableRequestNotificationParams'
+      options:
+        $ref: '#/definitions/handlers.CreateShareableRequestParams'
+      time_params:
+        $ref: '#/definitions/handlers.CreateShareableRequestTimeParams'
+      type:
+        $ref: '#/definitions/services.ShareableType'
+    required:
+    - name
+    - time_params
+    - type
+    type: object
+  handlers.CreateShareableRequestNotificationParams:
+    properties:
+      email_notification_on_open:
+        type: boolean
+      notify_target_emails:
+        type: boolean
+    type: object
+  handlers.CreateShareableRequestParams:
+    properties:
+      encrypt:
+        type: boolean
+      only_once:
+        type: boolean
+    type: object
+  handlers.CreateShareableRequestTimeParams:
+    properties:
+      active_from:
+        type: string
+      expiry_at:
+        type: string
+    type: object
+  handlers.CreateShareableResponse:
+    properties:
+      code:
+        type: string
+      uploads:
+        description: only present for file type
+        items:
+          $ref: '#/definitions/handlers.ShareableFileUpload'
+        type: array
+    type: object
+  handlers.GoogleCallbackRequest:
+    properties:
+      code:
+        type: string
+      state:
+        type: string
+    required:
+    - code
+    - state
+    type: object
+  handlers.GoogleCallbackResponse:
+    properties:
+      avatar:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+    type: object
+  handlers.GoogleLoginResponse:
+    properties:
+      url:
+        type: string
+    type: object
+  handlers.MeResponse:
+    properties:
+      avatar:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+    type: object
+  handlers.ShareableFileRequest:
+    properties:
+      content_type:
+        type: string
+      file_name:
+        type: string
+      file_size:
+        type: integer
+    required:
+    - content_type
+    - file_name
+    - file_size
+    type: object
+  handlers.ShareableFileUpload:
+    properties:
+      file_id:
+        type: string
+      file_name:
+        type: string
+      upload_url:
+        type: string
+    type: object
+  internal.ErrorResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  services.ShareableCode:
+    properties:
+      createdAt:
+        type: string
+      expiryAt:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      options:
+        additionalProperties:
+          type: string
+        type: object
+      shareableData:
+        type: string
+      shareableType:
+        type: string
+      sourceIp:
+        type: string
+      userEmail:
+        type: string
+      userID:
+        type: string
+    type: object
+  services.ShareableType:
+    enum:
+    - text
+    - url
+    - file
+    type: string
+    x-enum-varnames:
+    - ShareableTypeText
+    - ShareableTypeURL
+    - ShareableTypeFile
+externalDocs:
+  description: App Documentation
+  url: https://github.com/AlenGeoAlex/eev/docs
+host: https://e.alenalex/me
+info:
+  contact:
+    email: contact@alenalex.me
+    name: Alen Alex
+    url: http://alenalex.me
+  description: Backend service for eev
+  title: eev-backend
+  version: "1.0"
+paths:
+  /auth/google/callback:
+    post:
+      consumes:
+      - application/json
+      description: Validates Google OAuth code and state, creates or retrieves user,
+        sets access_token and refresh_token HttpOnly cookies.
+      parameters:
+      - description: Google OAuth callback request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.GoogleCallbackRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User authenticated successfully
+          schema:
+            $ref: '#/definitions/handlers.GoogleCallbackResponse'
+        "400":
+          description: Invalid request or state
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+        "401":
+          description: OAuth validation failed
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+      summary: Google OAuth callback
+      tags:
+      - auth
+  /auth/google/login:
+    get:
+      consumes:
+      - application/json
+      description: Generates OAuth state, stores it in HttpOnly cookie, and returns
+        Google authorization URL.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Returns Google OAuth URL
+          schema:
+            $ref: '#/definitions/handlers.GoogleLoginResponse'
+        "500":
+          description: Failed to generate state
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+      summary: Initiate Google OAuth login
+      tags:
+      - auth
+  /me:
+    get:
+      consumes:
+      - application/json
+      description: Returns the currently authenticated user based on the access_token
+        HttpOnly cookie.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved user
+          schema:
+            $ref: '#/definitions/handlers.MeResponse'
+        "401":
+          description: Unauthorized - missing or invalid token
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+      security:
+      - CookieAuth: []
+      summary: Get current logged-in user info
+      tags:
+      - user
+  /share:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new shareable resource (text, url, or file). Requires
+        authentication via access_token cookie.
+      parameters:
+      - description: Create shareable request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateShareableRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Shareable created
+          schema:
+            $ref: '#/definitions/handlers.CreateShareableResponse'
+        "202":
+          description: Shareable created - awaiting encrypted data
+          schema:
+            $ref: '#/definitions/handlers.CreateShareableResponse'
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+      security:
+      - CookieAuth: []
+      summary: Create a new shareable
+      tags:
+      - shareable
+  /share/{code}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves public shareable information using its unique code.
+      parameters:
+      - description: Shareable code
+        in: path
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Shareable info
+          schema:
+            $ref: '#/definitions/services.ShareableCode'
+        "400":
+          description: Invalid code
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+        "404":
+          description: Shareable not found
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+      summary: Get shareable by code
+      tags:
+      - shareable
+schemes:
+- http
+- https
+securityDefinitions:
+  CookieAuth:
+    description: This API uses cookie-based authentication. Clients must send the
+      `access_token` cookie for auth.
+    in: cookie
+    name: access_token
+    type: apiKey
+  RefreshTokenAuth:
+    description: Refresh token cookie (HttpOnly). Sent only to refresh endpoint.
+    in: cookie
+    name: refresh_token
+    type: apiKey
+swagger: "2.0"

@@ -1,5 +1,5 @@
 import {AuthService} from "$lib/services/auth.service";
-import {goto} from "$app/navigation";
+import {AppService} from "$lib/services/app-service";
 
 export class ShareableService {
     private static readonly instance: ShareableService = new ShareableService();
@@ -10,17 +10,78 @@ export class ShareableService {
 
     public async create(
         request: ShareableServiceCreateRequest
-    ){
-        const authInstance = AuthService.getInstance();
-        if(!authInstance.currentIdentity){
-            await goto("/auth");
-            return;
-        }
+    ) : Promise<{
+        status: 'created' | 'error' | 'encryption' | 'fileUpload',
+        id?: string
+        error?: string
+        uploads?: {
+            fileId: string;
+            url: string;
+            name: string;
+            file: File
+        }[]
+    }>{
+        try {
+            const shareableResponse = await AppService.instance.apis.shareable.sharePost({
+                handlersCreateShareableRequest: {
+                    name: request.name || ShareableService.createShareName(),
+                    type: request.type,
+                    data: request.type === "file" ? "" :
+                        request.encrypt ? "" : request.data,
+                    allowedEmails: Array.from(request.allowed_emails || []),
+                    timeParams: {
+                        expiryAt: request.expiry_at.toISOString(),
+                        activeFrom: request.active_from?.toISOString()
+                    },
+                    notificationParams: {
+                        emailNotificationOnOpen: request.email_notification_on_open,
+                        notifyTargetEmails: request.notify_target_emails
+                    },
+                    options: {
+                        onlyOnce: request.only_once,
+                        encrypt: request.encrypt
+                    }
+                }
+            });
 
-        const apiRequest : CreateShareableRequest = {
-            name: request.name || ShareableService.createShareName(),
-            type: request.type,
-            data: request.type === "FILE" ? request.d
+            if(!shareableResponse){
+                return {
+                    status: 'error',
+                    error: "Failed to create shareable"
+                };
+            }
+
+            if(request.encrypt){
+                return {
+                    status: 'encryption',
+                    id: shareableResponse.code!
+                }
+            }
+
+            if(request.type === "file"){
+                return {
+                    status: 'fileUpload',
+                    uploads: (shareableResponse.uploads ?? []).map(file => {
+                        return {
+                            fileId: file.fileId!,
+                            url: file.uploadUrl!,
+                            name: file.fileName!,
+                            file: request.data.find(x => x.name === file.fileName)!
+                        }
+                    }) || []
+                }
+            }
+
+            return {
+                status: 'created',
+                id: shareableResponse.code!
+            };
+        }catch (e){
+            console.error("Error creating shareable", e);
+            return {
+                status: 'error',
+                error: "Failed to create shareable"
+            };
         }
     }
 
@@ -31,38 +92,11 @@ export class ShareableService {
     }
 }
 
-export type CreateShareableRequest = {
-    name: string;
-    type: ShareableType;
-    data: string;
-    allowed_emails?: string[];
-    time_params: {
-        expiry_at: string;       // ISO date string
-        active_from?: string;    // ISO date string
-    };
-    notification_params?: {
-        email_notification_on_open: boolean;
-        notify_target_emails: boolean;
-    };
-    options: {
-        only_once: boolean;
-        encrypt: boolean;
-    };
-};
 
-export type ShareableType =
-    | "TEXT"
-    | "FILE"
-    | "LINK";
-
-export type CreateShareableResponse = {
-    code: string;
-    url?: string;
-};
 
 export type ShareableServiceCreateRequest =
     | {
-    type: "TEXT" | "LINK";
+    type: "text" | "url";
     name?: string;
     data: string;
     allowed_emails?: string[];
@@ -74,7 +108,7 @@ export type ShareableServiceCreateRequest =
     encrypt?: boolean;
 }
     | {
-    type: "FILE";
+    type: "file";
     name?: string;
     data: File[];
     allowed_emails?: string[];

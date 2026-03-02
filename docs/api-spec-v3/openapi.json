@@ -1,0 +1,554 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "description": "Backend service for eev",
+        "title": "eev-backend",
+        "contact": {
+            "name": "Alen Alex",
+            "url": "http://alenalex.me",
+            "email": "contact@alenalex.me"
+        },
+        "version": "1.0"
+    },
+    "paths": {
+        "/auth/google/callback": {
+            "post": {
+                "description": "Validates Google OAuth code and state, creates or retrieves user, sets access_token and refresh_token HttpOnly cookies.",
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Google OAuth callback",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/handlers.GoogleCallbackRequest"
+                            }
+                        }
+                    },
+                    "description": "Google OAuth callback request",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "User authenticated successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/handlers.GoogleCallbackResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request or state",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "OAuth validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/google/login": {
+            "get": {
+                "description": "Generates OAuth state, stores it in HttpOnly cookie, and returns Google authorization URL.",
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Initiate Google OAuth login",
+                "responses": {
+                    "200": {
+                        "description": "Returns Google OAuth URL",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/handlers.GoogleLoginResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to generate state",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/me": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns the currently authenticated user based on the access_token HttpOnly cookie.",
+                "tags": [
+                    "user"
+                ],
+                "summary": "Get current logged-in user info",
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved user",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/handlers.MeResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - missing or invalid token",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/share": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Creates a new shareable resource (text, url, or file). Requires authentication via access_token cookie.",
+                "tags": [
+                    "shareable"
+                ],
+                "summary": "Create a new shareable",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/handlers.CreateShareableRequest"
+                            }
+                        }
+                    },
+                    "description": "Create shareable request",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Shareable created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/handlers.CreateShareableResponse"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "Shareable created - awaiting encrypted data",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/handlers.CreateShareableResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/share/{code}": {
+            "get": {
+                "description": "Retrieves public shareable information using its unique code.",
+                "tags": [
+                    "shareable"
+                ],
+                "summary": "Get shareable by code",
+                "parameters": [
+                    {
+                        "description": "Shareable code",
+                        "name": "code",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Shareable info",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/services.ShareableCode"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid code",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Shareable not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "externalDocs": {
+        "description": "App Documentation",
+        "url": "https://github.com/AlenGeoAlex/eev/docs"
+    },
+    "servers": [
+        {
+            "url": "http://https://e.alenalex/me/api"
+        },
+        {
+            "url": "https://https://e.alenalex/me/api"
+        }
+    ],
+    "components": {
+        "securitySchemes": {
+            "CookieAuth": {
+                "description": "This API uses cookie-based authentication. Clients must send the `access_token` cookie for auth.",
+                "type": "apiKey",
+                "name": "access_token",
+                "in": "cookie"
+            },
+            "RefreshTokenAuth": {
+                "description": "Refresh token cookie (HttpOnly). Sent only to refresh endpoint.",
+                "type": "apiKey",
+                "name": "refresh_token",
+                "in": "cookie"
+            }
+        },
+        "schemas": {
+            "handlers.CreateShareableRequest": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "time_params",
+                    "type"
+                ],
+                "properties": {
+                    "allowed_emails": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "data": {
+                        "type": "string"
+                    },
+                    "files": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/handlers.ShareableFileRequest"
+                        }
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "notification_params": {
+                        "$ref": "#/components/schemas/handlers.CreateShareableRequestNotificationParams"
+                    },
+                    "options": {
+                        "$ref": "#/components/schemas/handlers.CreateShareableRequestParams"
+                    },
+                    "time_params": {
+                        "$ref": "#/components/schemas/handlers.CreateShareableRequestTimeParams"
+                    },
+                    "type": {
+                        "$ref": "#/components/schemas/services.ShareableType"
+                    }
+                }
+            },
+            "handlers.CreateShareableRequestNotificationParams": {
+                "type": "object",
+                "properties": {
+                    "email_notification_on_open": {
+                        "type": "boolean"
+                    },
+                    "notify_target_emails": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "handlers.CreateShareableRequestParams": {
+                "type": "object",
+                "properties": {
+                    "encrypt": {
+                        "type": "boolean"
+                    },
+                    "only_once": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "handlers.CreateShareableRequestTimeParams": {
+                "type": "object",
+                "properties": {
+                    "active_from": {
+                        "type": "string"
+                    },
+                    "expiry_at": {
+                        "type": "string"
+                    }
+                }
+            },
+            "handlers.CreateShareableResponse": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string"
+                    },
+                    "uploads": {
+                        "description": "only present for file type",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/handlers.ShareableFileUpload"
+                        }
+                    }
+                }
+            },
+            "handlers.GoogleCallbackRequest": {
+                "type": "object",
+                "required": [
+                    "code",
+                    "state"
+                ],
+                "properties": {
+                    "code": {
+                        "type": "string"
+                    },
+                    "state": {
+                        "type": "string"
+                    }
+                }
+            },
+            "handlers.GoogleCallbackResponse": {
+                "type": "object",
+                "properties": {
+                    "avatar": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    }
+                }
+            },
+            "handlers.GoogleLoginResponse": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string"
+                    }
+                }
+            },
+            "handlers.MeResponse": {
+                "type": "object",
+                "properties": {
+                    "avatar": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    }
+                }
+            },
+            "handlers.ShareableFileRequest": {
+                "type": "object",
+                "required": [
+                    "content_type",
+                    "file_name",
+                    "file_size"
+                ],
+                "properties": {
+                    "content_type": {
+                        "type": "string"
+                    },
+                    "file_name": {
+                        "type": "string"
+                    },
+                    "file_size": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "handlers.ShareableFileUpload": {
+                "type": "object",
+                "properties": {
+                    "file_id": {
+                        "type": "string"
+                    },
+                    "file_name": {
+                        "type": "string"
+                    },
+                    "upload_url": {
+                        "type": "string"
+                    }
+                }
+            },
+            "internal.ErrorResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "services.ShareableCode": {
+                "type": "object",
+                "properties": {
+                    "createdAt": {
+                        "type": "string"
+                    },
+                    "expiryAt": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "options": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
+                    "shareableData": {
+                        "type": "string"
+                    },
+                    "shareableType": {
+                        "type": "string"
+                    },
+                    "sourceIp": {
+                        "type": "string"
+                    },
+                    "userEmail": {
+                        "type": "string"
+                    },
+                    "userID": {
+                        "type": "string"
+                    }
+                }
+            },
+            "services.ShareableType": {
+                "type": "string",
+                "enum": [
+                    "text",
+                    "url",
+                    "file"
+                ],
+                "x-enum-varnames": [
+                    "ShareableTypeText",
+                    "ShareableTypeURL",
+                    "ShareableTypeFile"
+                ]
+            }
+        }
+    }
+}
