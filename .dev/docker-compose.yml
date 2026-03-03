@@ -7,6 +7,7 @@ services:
       - SERVICES=s3
       - DEFAULT_REGION=us-east-1
       - EAGER_SERVICE_LOADING=1
+      - DISABLE_CORS_HEADERS=1
     volumes:
       - localstack_data:/var/lib/localstack
       - ./init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh

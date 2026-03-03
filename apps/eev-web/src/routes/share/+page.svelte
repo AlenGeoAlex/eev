@@ -50,6 +50,8 @@
     import {zod4} from "sveltekit-superforms/adapters";
     import * as Tooltip from "$lib/components/ui/tooltip";
     import {ShareableService} from "$lib/services/shareable.service";
+    import FileUploadDialog from "$lib/components/share/FileUploadDialog.svelte";
+    import SuccessDialog from "$lib/components/share/SuccessDialog.svelte";
 
     let { data }: PageProps = $props();
     let dragOver = $state(false);
@@ -69,6 +71,11 @@
     let submittingToBackend = $state(false);
     let submitError = $state("");
     let submitSuccess = $state(false);
+
+    let showFileUpload = $state(false);
+    let showSuccess = $state(false);
+    let uploadsData = $state<any[]>([]);
+    let currentShareId = $state("");
 
     let hasFiles = $derived(uploadedFiles.length > 0);
     let hasText = $derived(textValue.trim() !== "");
@@ -157,6 +164,8 @@
         const type = inferType();
         const formData = $form;
         submittingToBackend = true;
+        submitError = "";
+
         const response = await ShareableService.getInstance().create({
             name: undefined,
             type: type,
@@ -170,12 +179,40 @@
             notify_target_emails: formData.notifyTargetUsers
         } as any)
 
-        if(response.status === 'created'){
-            submitSuccess = true;
-            setTimeout(() => {
-                submitSuccess = false;
-            }, 3000);
+        submittingToBackend = false;
+
+        if(response.status === 'fileUpload'){
+            uploadsData = response.uploads || [];
+            currentShareId = response.id!;
+            showFileUpload = true;
+        } else if(response.status === 'created'){
+            currentShareId = response.id!;
+            showSuccess = true;
+        } else if(response.status === 'error'){
+            console.error(response);
+            submitError = response.error || "Failed to create shareable";
         }
+    }
+
+    function handleFileUploadComplete() {
+        showFileUpload = false;
+        showSuccess = true;
+    }
+
+    function createNew() {
+        uploadedFiles = [];
+        textValue = "";
+        $form.targetEmails = [];
+        $form.activeFrom = null;
+        $form.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
+        $form.notifyOnOpen = false;
+        $form.notifyTargetUsers = false;
+        $form.allowOnce = true;
+        $form.encrypt = false;
+        showSuccess = false;
+        currentShareId = "";
+        submitError = "";
+        submitSuccess = false;
     }
 </script>
 
@@ -489,3 +526,15 @@
 
     </div>
 </form>
+
+<FileUploadDialog
+        bind:open={showFileUpload}
+        uploads={uploadsData}
+        onComplete={handleFileUploadComplete}
+/>
+
+<SuccessDialog
+        bind:open={showSuccess}
+        shareId={currentShareId}
+        onCreateNew={createNew}
+/>

@@ -1,5 +1,6 @@
 import {AuthService} from "$lib/services/auth.service";
 import {AppService} from "$lib/services/app-service";
+import type {HandlersShareableFileRequest, HandlersShareableFileUpload} from "../../../../../shared/ts-client";
 
 export class ShareableService {
     private static readonly instance: ShareableService = new ShareableService();
@@ -40,7 +41,14 @@ export class ShareableService {
                     options: {
                         onlyOnce: request.only_once,
                         encrypt: request.encrypt
-                    }
+                    },
+                    files: request.type === "file" ? Array.from((request.data as File[]).map(x => {
+                        return {
+                            fileName: x.name,
+                            fileSize: x.size,
+                            contentType: x.type
+                        } as HandlersShareableFileRequest
+                    })) : []
                 }
             });
 
@@ -61,6 +69,7 @@ export class ShareableService {
             if(request.type === "file"){
                 return {
                     status: 'fileUpload',
+                    id: shareableResponse.code!,
                     uploads: (shareableResponse.uploads ?? []).map(file => {
                         return {
                             fileId: file.fileId!,
@@ -83,6 +92,44 @@ export class ShareableService {
                 error: "Failed to create shareable"
             };
         }
+    }
+
+    public async uploadWithPreSignedUrl(
+        presignedUrl: string,
+        file: File,
+        { onSuccess, onError, onProgress }: UploadCallbacks = {}
+    ): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+
+            xhr.upload.addEventListener('progress', (event: ProgressEvent) => {
+                if (event.lengthComputable) {
+                    const percent = Math.round((event.loaded / event.total) * 100);
+                    onProgress?.(percent, event.loaded, event.total);
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    onSuccess?.();
+                    resolve();
+                } else {
+                    const err = new Error(`Upload failed: ${xhr.status}`);
+                    onError?.(err);
+                    reject(err);
+                }
+            });
+
+            xhr.addEventListener('error', () => {
+                const err = new Error('Upload failed: network error');
+                onError?.(err);
+                reject(err);
+            });
+
+            xhr.open('PUT', presignedUrl);
+            xhr.setRequestHeader('Content-Type', file.type);
+            xhr.send(file);
+        });
     }
 
     private static createShareName() : string{
@@ -119,3 +166,9 @@ export type ShareableServiceCreateRequest =
     only_once?: boolean;
     encrypt?: boolean;
 };
+
+interface UploadCallbacks {
+    onSuccess?: () => void;
+    onError?: (error: Error) => void;
+    onProgress?: (percent: number, loaded: number, total: number) => void;
+}
