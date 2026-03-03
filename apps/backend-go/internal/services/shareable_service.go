@@ -3,7 +3,7 @@ package services
 import (
 	"backend-go/internal"
 	sqliteeev "backend-go/internal/db/sqlite/generated"
-	"backend-go/internal/s3"
+	s3 "backend-go/internal/manager"
 	"context"
 	"database/sql"
 	"errors"
@@ -49,10 +49,10 @@ const (
 
 type ShareableService struct {
 	q         *sqliteeev.Queries
-	s3Manager *s3.Manager
+	s3Manager *s3.S3Manager
 }
 
-func NewShareableService(q *sqliteeev.Queries, s3Manager *s3.Manager) *ShareableService {
+func NewShareableService(q *sqliteeev.Queries, s3Manager *s3.S3Manager) *ShareableService {
 	return &ShareableService{q: q, s3Manager: s3Manager}
 }
 

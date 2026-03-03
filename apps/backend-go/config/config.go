@@ -22,8 +22,10 @@ const (
 )
 
 type AppConfig struct {
-	Env  string `env:"APP_ENV"  envDefault:"prod"`
-	Port int    `env:"APP_PORT" envDefault:"8080"`
+	Env               string  `env:"APP_ENV"  envDefault:"prod"`
+	Port              int     `env:"APP_PORT" envDefault:"8080"`
+	MaxUploadSizeInMB int     `env:"APP_MAX_UPLOAD_SIZE_IN_MB" envDefault:"1024"`
+	Host              *string `env:"APP_HOST"`
 
 	DB    DBConfig
 	Jwt   JwtConfig

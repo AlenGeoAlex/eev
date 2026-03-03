@@ -1,6 +1,10 @@
 import {AuthService} from "$lib/services/auth.service";
 import {AppService} from "$lib/services/app-service";
-import type {HandlersShareableFileRequest, HandlersShareableFileUpload} from "../../../../../shared/ts-client";
+import {
+    type HandlersShareableFileRequest,
+    type HandlersShareableFileUpload,
+    ResponseError
+} from "../../../../../shared/ts-client";
 
 export class ShareableService {
     private static readonly instance: ShareableService = new ShareableService();
@@ -86,6 +90,14 @@ export class ShareableService {
                 id: shareableResponse.code!
             };
         }catch (e){
+            if (e instanceof ResponseError){
+                if (e.response.status === 413){
+                    return {
+                        status: 'error',
+                        error: "The combined file size is exceeding the limit. Please split the file and try again."
+                    };
+                }
+            }
             console.error("Error creating shareable", e);
             return {
                 status: 'error',

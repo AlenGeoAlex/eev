@@ -1,4 +1,4 @@
-package s3
+package manager
 
 import (
 	"context"
@@ -11,24 +11,23 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
-type Manager struct {
+type S3Manager struct {
 	client        *s3.Client
 	presignClient *s3.PresignClient
 	bucket        string
 	signedURLTTL  time.Duration
 }
 
-type ManagerConfig struct {
+type S3ManagerConfiguration struct {
 	AccessKey    string
 	SecretKey    string
 	Region       string
 	Bucket       string
 	SignedURLTTL time.Duration
-	// Optional: override the S3 endpoint (useful for R2, MinIO, etc.)
-	EndpointURL string
+	EndpointURL  string
 }
 
-func NewManager(_ context.Context, cfg ManagerConfig) (*Manager, error) {
+func NewManager(_ context.Context, cfg S3ManagerConfiguration) (*S3Manager, error) {
 	if cfg.SignedURLTTL == 0 {
 		cfg.SignedURLTTL = time.Hour
 	}
@@ -51,7 +50,7 @@ func NewManager(_ context.Context, cfg ManagerConfig) (*Manager, error) {
 
 	client := s3.NewFromConfig(awsCfg, clientOptions...)
 
-	return &Manager{
+	return &S3Manager{
 		client:        client,
 		presignClient: s3.NewPresignClient(client),
 		bucket:        cfg.Bucket,
@@ -60,7 +59,7 @@ func NewManager(_ context.Context, cfg ManagerConfig) (*Manager, error) {
 }
 
 // PresignGetObject returns a signed URL for downloading an object.
-func (m *Manager) PresignGetObject(ctx context.Context, key string) (string, error) {
+func (m *S3Manager) PresignGetObject(ctx context.Context, key string) (string, error) {
 	req, err := m.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(m.bucket),
 		Key:    aws.String(key),
@@ -73,7 +72,7 @@ func (m *Manager) PresignGetObject(ctx context.Context, key string) (string, err
 }
 
 // PresignPutObject returns a signed URL the client can use to upload directly to S3.
-func (m *Manager) PresignPutObject(ctx context.Context, key string, contentType string, contentLength int64) (string, error) {
+func (m *S3Manager) PresignPutObject(ctx context.Context, key string, contentType string, contentLength int64) (string, error) {
 	req, err := m.presignClient.PresignPutObject(ctx, &s3.PutObjectInput{
 		Bucket:        aws.String(m.bucket),
 		Key:           aws.String(key),
@@ -88,7 +87,7 @@ func (m *Manager) PresignPutObject(ctx context.Context, key string, contentType 
 }
 
 // DeleteObject deletes an object from S3.
-func (m *Manager) DeleteObject(ctx context.Context, key string) error {
+func (m *S3Manager) DeleteObject(ctx context.Context, key string) error {
 	_, err := m.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(m.bucket),
 		Key:    aws.String(key),
@@ -101,7 +100,7 @@ func (m *Manager) DeleteObject(ctx context.Context, key string) error {
 }
 
 // DeleteObjects deletes multiple objects in a single request (max 1000).
-func (m *Manager) DeleteObjects(ctx context.Context, keys []string) error {
+func (m *S3Manager) DeleteObjects(ctx context.Context, keys []string) error {
 	objects := make([]types.ObjectIdentifier, len(keys))
 	for i, k := range keys {
 		objects[i] = types.ObjectIdentifier{Key: aws.String(k)}

@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"backend-go/config"
 	"backend-go/internal"
 	"backend-go/internal/httpx"
 	"backend-go/internal/services"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -16,6 +18,7 @@ import (
 
 type ShareableHandler struct {
 	shareableService *services.ShareableService
+	appConfig        *config.AppConfig
 }
 
 type CreateShareableRequest struct {
@@ -100,6 +103,16 @@ func (h *ShareableHandler) CreateShareable(w http.ResponseWriter, r *http.Reques
 		}
 		if body.Files == nil || len(*body.Files) == 0 {
 			h.respondError(w, http.StatusBadRequest, "At least one file is required for file type")
+			return
+		}
+
+		contentSizeTotal := int64(0)
+		for _, file := range *body.Files {
+			contentSizeTotal += file.FileSize
+		}
+
+		if contentSizeTotal > int64(h.appConfig.MaxUploadSizeInMB)*int64(1024)*int64(1024) {
+			h.respondError(w, http.StatusBadRequest, fmt.Sprintf("Total file size must be less than %d MB", h.appConfig.MaxUploadSizeInMB))
 			return
 		}
 	} else {

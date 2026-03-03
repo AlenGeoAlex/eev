@@ -5,8 +5,8 @@ import (
 	sqliteeev "backend-go/internal/db/sqlite/generated"
 	"backend-go/internal/handlers"
 	"backend-go/internal/httpx"
+	s3 "backend-go/internal/manager"
 	middleware2 "backend-go/internal/middleware"
-	"backend-go/internal/s3"
 	"backend-go/internal/services"
 	"backend-go/internal/validation"
 	"context"
@@ -67,6 +67,19 @@ func main() {
 		}
 	}(db)
 
+	//upgrader := websocket.Upgrader{
+	//	ReadBufferSize:    1024 * 2,
+	//	WriteBufferSize:   1024 * 2,
+	//	EnableCompression: true,
+	//	CheckOrigin: func(r *http.Request) bool {
+	//		if appConfig.Host == nil || *(appConfig.Host) == "" {
+	//			return true
+	//		}
+	//
+	//		return r.Host == *appConfig.Host
+	//	},
+	//}
+
 	validation.Init()
 	queries := sqliteeev.New(db)
 	log.Println("Database connection established")
@@ -78,7 +91,7 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Heartbeat("/alive"))
 
-	s3Manager, err := s3.NewManager(ctx, s3.ManagerConfig{
+	s3Manager, err := s3.NewManager(ctx, s3.S3ManagerConfiguration{
 		AccessKey:   appConfig.S3.AccessKey,
 		SecretKey:   appConfig.S3.SecretKey,
 		Region:      appConfig.S3.Region,

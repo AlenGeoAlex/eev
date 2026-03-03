@@ -3,6 +3,7 @@
 	import { Button } from "$lib/components/ui/button";
 	import { CircleCheck, Copy, Plus, Check } from "@lucide/svelte";
 	import { cn } from "$lib/utils";
+	import {goto} from "$app/navigation";
 
 	let {
 		open = $bindable(false),
@@ -77,7 +78,7 @@
 					class="flex-1 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:text-white"
 					onclick={() => {
 						open = false;
-						onCreateNew();
+						goto('/share');
 					}}
 				>
 					<Plus class="mr-2 size-4" />
