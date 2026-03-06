@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
@@ -19,6 +20,10 @@ type MeResponse struct {
 	ID     string  `json:"id"`
 	Email  string  `json:"email"`
 	Avatar *string `json:"avatar,omitempty"`
+}
+
+type TargetUserEmailResponse struct {
+	History []services.TargetUserEmails `json:"history"`
 }
 
 func NewMeHandler(authService *services.AuthService, userService *services.UserService) *MeHandler {
@@ -95,6 +100,50 @@ func (receiver *MeHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		Email:  user.Email,
 		Avatar: avatar,
 	})
+}
+
+// GetEmailHistory godoc
+// @Summary Get the past email targets of the user
+// @Description Returns the past email targets of the user
+// @Name GetEmailHistory
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security CookieAuth
+// @Param search query string false "Search email substring"
+// @Success 200 {object} TargetUserEmailResponse "Successfully retrieved user history"
+// @Failure 401 {object} internal.ErrorResponse "Unauthorized - missing or invalid token"
+// @Failure 500 {object} internal.ErrorResponse "Internal server error"
+// @Router /me/email-history [get]
+func (receiver *MeHandler) GetEmailHistory(w http.ResponseWriter, r *http.Request) {
+	context := r.Context()
+	claims, ok := context.Value(httpx.UserClaimsKey).(*jwt.MapClaims)
+	if !ok || claims == nil {
+		receiver.respondError(w, http.StatusUnauthorized, "Failed to get claims")
+		return
+	}
+
+	subject, err := claims.GetSubject()
+	if err != nil || subject == "" {
+		receiver.respondError(w, http.StatusUnauthorized, "Failed to get subject from claims")
+		return
+	}
+
+	query := r.URL.Query()
+	search := query.Get("q")
+	subjectParsed, err := uuid.Parse(subject)
+	if err != nil {
+		receiver.respondError(w, http.StatusUnauthorized, "Failed to parse subject")
+		return
+	}
+
+	user, err := receiver.userService.GetTargetEmailsOfUser(context, subjectParsed, &search)
+	if err != nil {
+		receiver.respondError(w, http.StatusInternalServerError, "Failed to get user")
+		return
+	}
+
+	receiver.respondJSON(w, http.StatusOK, user)
 }
 
 func (receiver *MeHandler) respondJSON(w http.ResponseWriter, status int, data interface{}) {

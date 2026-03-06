@@ -14,6 +14,11 @@ type UserService struct {
 	q *sqliteeev.Queries
 }
 
+type TargetUserEmails struct {
+	Email     string `json:"email"`
+	IsStarred bool   `json:"is_starred"`
+}
+
 func NewUserService(q *sqliteeev.Queries) *UserService {
 	return &UserService{q: q}
 }
@@ -68,4 +73,37 @@ func (s *UserService) CreateUser(ctx context.Context, email string, source strin
 		AvatarUrl: user.AvatarUrl,
 		Source:    user.Source,
 	}, nil
+}
+
+func (s *UserService) GetTargetEmailsOfUser(ctx context.Context, userId uuid.UUID, searchTerm *string) ([]TargetUserEmails, error) {
+	search := ""
+	if searchTerm != nil {
+		search = *searchTerm
+	}
+
+	targetUsers, err := s.q.GetTargetEmailsForUser(ctx, sqliteeev.GetTargetEmailsForUserParams{
+		UserID:  userId.String(),
+		Column2: sql.NullString{String: search, Valid: true},
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return make([]TargetUserEmails, 0), nil
+	}
+
+	result := make([]TargetUserEmails, len(targetUsers))
+	for i, user := range targetUsers {
+		starred := false
+		if user.Starred == 1 {
+			starred = true
+		}
+		result[i] = TargetUserEmails{
+			Email:     user.TargetEmail,
+			IsStarred: starred,
+		}
+	}
+
+	return result, nil
 }

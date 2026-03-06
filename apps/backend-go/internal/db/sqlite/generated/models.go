@@ -56,3 +56,10 @@ type User struct {
 	Source    string
 	CreatedAt string
 }
+
+type UserTargetHistory struct {
+	UserID      string
+	TargetEmail string
+	Occurences  int64
+	Starred     int64
+}

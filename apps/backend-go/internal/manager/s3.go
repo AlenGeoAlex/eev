@@ -27,7 +27,7 @@ type S3ManagerConfiguration struct {
 	EndpointURL  string
 }
 
-func NewManager(_ context.Context, cfg S3ManagerConfiguration) (*S3Manager, error) {
+func NewS3Manager(_ context.Context, cfg S3ManagerConfiguration) (*S3Manager, error) {
 	if cfg.SignedURLTTL == 0 {
 		cfg.SignedURLTTL = time.Hour
 	}

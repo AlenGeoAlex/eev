@@ -5,12 +5,13 @@ import (
 	sqliteeev "backend-go/internal/db/sqlite/generated"
 	"backend-go/internal/handlers"
 	"backend-go/internal/httpx"
-	s3 "backend-go/internal/manager"
+	manager "backend-go/internal/manager"
 	middleware2 "backend-go/internal/middleware"
 	"backend-go/internal/services"
 	"backend-go/internal/validation"
 	"context"
 	"database/sql"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -49,7 +50,9 @@ import (
 // @description Refresh token cookie (HttpOnly). Sent only to refresh endpoint.
 func main() {
 	appConfig := config.NewAppConfig()
-	ctx := context.Background()
+	ctx, cancel := context.WithCancelCause(context.Background())
+	cancel(errors.New("server shutting down"))
+
 	log.Println("Opening SQLite DB at:", appConfig.DB.ConnectionString())
 	db, err := sql.Open("sqlite", appConfig.DB.ConnectionString())
 	if err != nil {
@@ -91,7 +94,7 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Heartbeat("/alive"))
 
-	s3Manager, err := s3.NewManager(ctx, s3.S3ManagerConfiguration{
+	s3Manager, err := manager.NewS3Manager(ctx, manager.S3ManagerConfiguration{
 		AccessKey:   appConfig.S3.AccessKey,
 		SecretKey:   appConfig.S3.SecretKey,
 		Region:      appConfig.S3.Region,
@@ -100,6 +103,7 @@ func main() {
 	})
 
 	shareableService := services.NewShareableService(queries, s3Manager)
+	shareableService.InitWorkers(ctx)
 	authService := services.NewAuthService(appConfig.OAuth, appConfig.Jwt, queries)
 	userService := services.NewUserService(queries)
 

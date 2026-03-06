@@ -113,6 +113,13 @@ definitions:
       upload_url:
         type: string
     type: object
+  handlers.TargetUserEmailResponse:
+    properties:
+      history:
+        items:
+          $ref: '#/definitions/services.TargetUserEmails'
+        type: array
+    type: object
   internal.ErrorResponse:
     properties:
       message:
@@ -153,6 +160,13 @@ definitions:
     - ShareableTypeText
     - ShareableTypeURL
     - ShareableTypeFile
+  services.TargetUserEmails:
+    properties:
+      email:
+        type: string
+      is_starred:
+        type: boolean
+    type: object
 externalDocs:
   description: App Documentation
   url: https://github.com/AlenGeoAlex/eev/docs
@@ -245,6 +259,36 @@ paths:
       security:
       - CookieAuth: []
       summary: Get current logged-in user info
+      tags:
+      - user
+  /me/email-history:
+    get:
+      consumes:
+      - application/json
+      description: Returns the past email targets of the user
+      parameters:
+      - description: Search email substring
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved user history
+          schema:
+            $ref: '#/definitions/handlers.TargetUserEmailResponse'
+        "401":
+          description: Unauthorized - missing or invalid token
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+      security:
+      - CookieAuth: []
+      summary: Get the past email targets of the user
       tags:
       - user
   /share:

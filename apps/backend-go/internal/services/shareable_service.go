@@ -6,6 +6,7 @@ import (
 	s3 "backend-go/internal/manager"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"log"
 	"path"
@@ -47,13 +48,142 @@ const (
 	ShareableOptionAwaitingEncryptedData   ShareableOption = "awaiting_encrypted_data"
 )
 
+type ShareableFileDeletionEvent struct {
+	ID     string
+	S3Keys []string
+}
+
+type DeleteShareableEvent struct {
+	ID     string
+	Reason string
+}
+
+type UpdateTargetHistoryEvent struct {
+	UserID         string
+	EmailAddresses []string
+}
+
 type ShareableService struct {
 	q         *sqliteeev.Queries
 	s3Manager *s3.S3Manager
+
+	// Channels
+	FileDeletionEvent        chan ShareableFileDeletionEvent
+	DeleteShareableEvent     chan DeleteShareableEvent
+	UpdateTargetHistoryEvent chan UpdateTargetHistoryEvent
 }
 
 func NewShareableService(q *sqliteeev.Queries, s3Manager *s3.S3Manager) *ShareableService {
-	return &ShareableService{q: q, s3Manager: s3Manager}
+	return &ShareableService{
+		q:         q,
+		s3Manager: s3Manager,
+
+		FileDeletionEvent:        make(chan ShareableFileDeletionEvent, 100),
+		DeleteShareableEvent:     make(chan DeleteShareableEvent, 100),
+		UpdateTargetHistoryEvent: make(chan UpdateTargetHistoryEvent, 100),
+	}
+}
+
+func (s ShareableService) InitWorkers(ctx context.Context) {
+	s.runFileDeletion(ctx)
+	s.runDeleteShareEvent(ctx)
+	s.runUpdateTargetHistoryEvent(ctx)
+}
+
+func (s ShareableService) publishFileDeletionEvent(e ShareableFileDeletionEvent) {
+	s.FileDeletionEvent <- e
+}
+
+func (s ShareableService) publishDeleteShareEvent(e DeleteShareableEvent) {
+	s.DeleteShareableEvent <- e
+}
+
+func (s ShareableService) publishUpdateTargetHistoryEvent(e UpdateTargetHistoryEvent) {
+	s.UpdateTargetHistoryEvent <- e
+}
+
+func (s ShareableService) runUpdateTargetHistoryEvent(ctx context.Context) {
+	go func() {
+		for {
+			select {
+			case event := <-s.UpdateTargetHistoryEvent:
+				{
+					for _, address := range event.EmailAddresses {
+						err := s.q.UpsertTargetsForUser(ctx, sqliteeev.UpsertTargetsForUserParams{
+							UserID:      event.UserID,
+							TargetEmail: address,
+						})
+						if err != nil {
+							log.Printf("Failed to upsert targets for user %s: %v", event.UserID, err)
+							return
+						}
+					}
+				}
+			case <-ctx.Done():
+				log.Printf("Stopping the runUpdateTargetHistoryEvent due to context cancellation. [%s]", ctx.Err())
+			}
+		}
+	}()
+}
+
+func (s ShareableService) runDeleteShareEvent(ctx context.Context) {
+	go func() {
+		for {
+			select {
+			case event := <-s.DeleteShareableEvent:
+				{
+					log.Printf("DeleteShareableEvent received for %s with reason %s", event.ID, event.Reason)
+					shareableWithOptions, err := s.q.GetShareable(ctx, event.ID)
+					if err != nil {
+						log.Printf("Error getting shareable for %s. Aborting deletion", event.ID)
+						return
+					}
+
+					if shareableWithOptions == nil || errors.Is(err, sql.ErrNoRows) || len(shareableWithOptions) == 0 {
+						log.Printf("Shareable for %s was nil", event.ID)
+						return
+					}
+
+					shareable := shareableWithOptions[0] //(Ignore the options with this one)
+					if shareable.ShareableType == string(ShareableTypeFile) {
+						shareFiles, err := s.q.GetShareableFilesOfShare(ctx, shareable.ID)
+						if err == nil && len(shareFiles) > 0 {
+							s3Keys := make([]string, len(shareFiles))
+							for _, file := range shareFiles {
+								s3Keys = append(s3Keys, file.S3Key)
+							}
+
+							s.publishFileDeletionEvent(ShareableFileDeletionEvent{
+								ID:     shareable.ID,
+								S3Keys: s3Keys,
+							})
+						} else {
+							log.Printf("Error getting shareable for %s. Aborting deletion", event.ID)
+						}
+					}
+
+				}
+			case <-ctx.Done():
+				log.Printf("Stopping the runDeleteShareEvent due to context cancellation. [%s]", ctx.Err())
+			}
+		}
+	}()
+}
+
+func (s ShareableService) runFileDeletion(ctx context.Context) {
+	go func() {
+		for {
+			select {
+			case event := <-s.FileDeletionEvent:
+				{
+					log.Printf("Received file deletion event: %s with %d urls", event.ID, len(event.S3Keys))
+
+				}
+			case <-ctx.Done():
+				log.Println("EventBus shutting down for FileDeletionEvent")
+			}
+		}
+	}()
 }
 
 func (s ShareableService) CreateShareable(
@@ -90,10 +220,15 @@ func (s ShareableService) CreateShareable(
 	for option, val := range options {
 		err := s.upsertShareableOption(option, val, id)
 		if err != nil {
-			// TODO PUSH TO DELETE IN CHANNELS
+			s.publishDeleteShareEvent(DeleteShareableEvent{
+				ID: id,
+			})
 			return nil, errors.New("failed to create shareable option - " + string(option))
 		}
 	}
+
+	targetEmailsJson := options[ShareableOptionTargetEmails]
+	s.updateTargetEmails(targetEmailsJson, userID)
 
 	shareable = &ShareableCode{
 		ID:            id,
@@ -109,6 +244,22 @@ func (s ShareableService) CreateShareable(
 	}
 
 	return shareable, nil
+}
+
+func (s ShareableService) updateTargetEmails(targetEmailsJson string, userId string) {
+	var emails []string
+
+	err := json.Unmarshal([]byte(targetEmailsJson), &emails)
+	if err != nil {
+		log.Printf("Error unmarshalling emails json: %v", err)
+		return
+	}
+
+	s.publishUpdateTargetHistoryEvent(UpdateTargetHistoryEvent{
+		UserID:         userId,
+		EmailAddresses: emails,
+	})
+	log.Printf("Updated target emails for %s with %d emails", userId, len(emails))
 }
 
 func (s ShareableService) upsertShareableOption(

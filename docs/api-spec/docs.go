@@ -141,6 +141,54 @@ const docTemplate = `{
                 }
             }
         },
+        "/me/email-history": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns the past email targets of the user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Get the past email targets of the user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search email substring",
+                        "name": "search",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved user history",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.TargetUserEmailResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - missing or invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/internal.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/internal.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/share": {
             "post": {
                 "security": [
@@ -428,6 +476,17 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.TargetUserEmailResponse": {
+            "type": "object",
+            "properties": {
+                "history": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.TargetUserEmails"
+                    }
+                }
+            }
+        },
         "internal.ErrorResponse": {
             "type": "object",
             "properties": {
@@ -486,6 +545,17 @@ const docTemplate = `{
                 "ShareableTypeURL",
                 "ShareableTypeFile"
             ]
+        },
+        "services.TargetUserEmails": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "is_starred": {
+                    "type": "boolean"
+                }
+            }
         }
     },
     "securityDefinitions": {

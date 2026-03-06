@@ -8,6 +8,12 @@ JOIN shareable_options so ON s.id = so.share_id
 JOIN user u ON u.id = s.user_id
 WHERE s.id = ?;
 
+-- name: GetShareableFilesOfShare :many
+SELECT *
+FROM shareable_files sf
+WHERE sf.share_id = ?
+ORDER BY sf.file_name;
+
 -- name: InsertShareable :exec
 INSERT INTO shareable (id, name, user_id, source_ip, expiry_at, shareable_type, shareable_data, active_from)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?);

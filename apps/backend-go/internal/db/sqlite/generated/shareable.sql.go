@@ -124,6 +124,43 @@ func (q *Queries) GetShareableFiles(ctx context.Context, shareID string) ([]Shar
 	return items, nil
 }
 
+const getShareableFilesOfShare = `-- name: GetShareableFilesOfShare :many
+SELECT id, share_id, file_name, content_type, s3_key, created_at
+FROM shareable_files sf
+WHERE sf.share_id = ?
+ORDER BY sf.file_name
+`
+
+func (q *Queries) GetShareableFilesOfShare(ctx context.Context, shareID string) ([]ShareableFile, error) {
+	rows, err := q.db.QueryContext(ctx, getShareableFilesOfShare, shareID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ShareableFile{}
+	for rows.Next() {
+		var i ShareableFile
+		if err := rows.Scan(
+			&i.ID,
+			&i.ShareID,
+			&i.FileName,
+			&i.ContentType,
+			&i.S3Key,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertShareable = `-- name: InsertShareable :exec
 INSERT INTO shareable (id, name, user_id, source_ip, expiry_at, shareable_type, shareable_data, active_from)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
