@@ -16,19 +16,69 @@
 import * as runtime from '../runtime';
 import type {
   HandlersMeResponse,
+  HandlersTargetUserEmailResponse,
   InternalErrorResponse,
 } from '../models/index';
 import {
     HandlersMeResponseFromJSON,
     HandlersMeResponseToJSON,
+    HandlersTargetUserEmailResponseFromJSON,
+    HandlersTargetUserEmailResponseToJSON,
     InternalErrorResponseFromJSON,
     InternalErrorResponseToJSON,
 } from '../models/index';
+
+export interface MeEmailHistoryGetRequest {
+    search?: string;
+}
 
 /**
  * 
  */
 export class UserApi extends runtime.BaseAPI {
+
+    /**
+     * Creates request options for meEmailHistoryGet without sending the request
+     */
+    async meEmailHistoryGetRequestOpts(requestParameters: MeEmailHistoryGetRequest): Promise<runtime.RequestOpts> {
+        const queryParameters: any = {};
+
+        if (requestParameters['search'] != null) {
+            queryParameters['search'] = requestParameters['search'];
+        }
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+
+        let urlPath = `/me/email-history`;
+
+        return {
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     * Returns the past email targets of the user
+     * Get the past email targets of the user
+     */
+    async meEmailHistoryGetRaw(requestParameters: MeEmailHistoryGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<HandlersTargetUserEmailResponse>> {
+        const requestOptions = await this.meEmailHistoryGetRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => HandlersTargetUserEmailResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Returns the past email targets of the user
+     * Get the past email targets of the user
+     */
+    async meEmailHistoryGet(requestParameters: MeEmailHistoryGetRequest = {}, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<HandlersTargetUserEmailResponse> {
+        const response = await this.meEmailHistoryGetRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
 
     /**
      * Creates request options for meGet without sending the request

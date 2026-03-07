@@ -11,6 +11,8 @@ export * from './HandlersGoogleLoginResponse';
 export * from './HandlersMeResponse';
 export * from './HandlersShareableFileRequest';
 export * from './HandlersShareableFileUpload';
+export * from './HandlersTargetUserEmailResponse';
 export * from './InternalErrorResponse';
 export * from './ServicesShareableCode';
 export * from './ServicesShareableType';
+export * from './ServicesTargetUserEmails';

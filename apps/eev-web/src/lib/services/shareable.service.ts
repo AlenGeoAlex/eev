@@ -144,6 +144,33 @@ export class ShareableService {
         });
     }
 
+    public async getTargetUsers(query: string = "") : Promise<{
+        email: string
+        starred: boolean
+    }[]>{
+        try {
+            const response = await AppService.instance.apis.user.meEmailHistoryGet({
+                search: query
+            })
+
+            return response.history?.map(x => {
+                return {
+                    email: x.email!,
+                    starred: x.isStarred ?? false
+                }
+            }) || [];
+        }catch (e){
+            if (e instanceof ResponseError){
+                if (e.response.status === 401){
+                    return [];
+                }
+            }
+
+            console.error("Error fetching target users", e);
+            return [];
+        }
+    }
+
     private static createShareName() : string{
         const authInstance = AuthService.getInstance();
         const currentIdentity = authInstance.currentIdentity!;

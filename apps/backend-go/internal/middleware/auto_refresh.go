@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 )
 
@@ -41,9 +42,12 @@ func AutoRefreshMiddleware(auth *services.AuthService) func(next http.Handler) h
 
 			newAccess, newRefresh, _, err := auth.Refresh(r.Context(), accessCookie.Value, refreshCookie.Value)
 			if err != nil {
+				log.Println("Refresh failed", err)
 				respondError(w, http.StatusUnauthorized, "Unauthorized [FR]")
 				return
 			}
+
+			log.Println("Refresh succeeded")
 
 			// Set new cookies (HTTP-only, secure)
 			http.SetCookie(w, &http.Cookie{

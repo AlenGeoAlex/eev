@@ -150,6 +150,62 @@
                 }
             }
         },
+        "/me/email-history": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns the past email targets of the user",
+                "tags": [
+                    "user"
+                ],
+                "summary": "Get the past email targets of the user",
+                "parameters": [
+                    {
+                        "description": "Search email substring",
+                        "name": "search",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved user history",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/handlers.TargetUserEmailResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - missing or invalid token",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/share": {
             "post": {
                 "security": [
@@ -296,10 +352,10 @@
     },
     "servers": [
         {
-            "url": "http://https://e.alenalex/me/api"
+            "url": "http://e.alenalex/me/api"
         },
         {
-            "url": "https://https://e.alenalex/me/api"
+            "url": "https://e.alenalex/me/api"
         }
     ],
     "components": {
@@ -490,6 +546,17 @@
                     }
                 }
             },
+            "handlers.TargetUserEmailResponse": {
+                "type": "object",
+                "properties": {
+                    "history": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/services.TargetUserEmails"
+                        }
+                    }
+                }
+            },
             "internal.ErrorResponse": {
                 "type": "object",
                 "properties": {
@@ -548,6 +615,17 @@
                     "ShareableTypeURL",
                     "ShareableTypeFile"
                 ]
+            },
+            "services.TargetUserEmails": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string"
+                    },
+                    "is_starred": {
+                        "type": "boolean"
+                    }
+                }
             }
         }
     }

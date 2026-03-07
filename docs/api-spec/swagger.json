@@ -14,7 +14,7 @@
         },
         "version": "1.0"
     },
-    "host": "https://e.alenalex/me",
+    "host": "e.alenalex/me",
     "basePath": "/api/",
     "paths": {
         "/auth/google/callback": {

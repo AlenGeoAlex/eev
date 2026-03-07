@@ -1,5 +1,5 @@
 <script lang="ts" context="module">
-    import { z } from "zod";
+    import {z} from "zod";
 
     export const shareSchema = z
         .object({
@@ -43,7 +43,7 @@
     import { Switch } from "$lib/components/ui/switch";
     import { Badge } from "$lib/components/ui/badge";
     import { Input } from "$lib/components/ui/input";
-    import { Upload, FileText, Mail, X, CalendarClock, Clock4 } from "@lucide/svelte";
+    import { Upload, FileText, Mail, X, CalendarClock, Clock4, Check, Loader2, Plus } from "@lucide/svelte";
     import { superForm, defaults } from "sveltekit-superforms";
     import type { PageProps } from "./$types";
     import { format, formatDistance, formatRelative, subDays } from 'date-fns'
@@ -63,10 +63,8 @@
             SPA: true,
             validators: zod4(shareSchema),
             dataType: "json",
-
         }
     );
-
 
     let submittingToBackend = $state(false);
     let submitError = $state("");
@@ -118,8 +116,77 @@
         return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     }
 
+    interface UserSuggestion {
+        email: string;
+        is_starred?: boolean;
+    }
+
     let emailInput = $state("");
     let emailError = $state("");
+    let suggestions = $state<UserSuggestion[]>([]);
+    let isLoadingSuggestions = $state(false);
+    let isDropdownOpen = $state(false);
+    let searchDebounce: ReturnType<typeof setTimeout>;
+
+    async function searchUsers(query: string): Promise<UserSuggestion[]> {
+        const response = await ShareableService.getInstance().getTargetUsers(query);
+        return response.map((user: any) => ({
+            email: user.email,
+            is_starred: user.is_starred ?? false
+        }));
+    }
+
+    function isValidEmail(email: string) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+    }
+
+    async function handleEmailInput() {
+        clearTimeout(searchDebounce);
+        emailError = "";
+
+        if (emailInput.length < 2) {
+            suggestions = [];
+            isDropdownOpen = false;
+            return;
+        }
+
+        searchDebounce = setTimeout(async () => {
+            isLoadingSuggestions = true;
+            try {
+                suggestions = await searchUsers(emailInput)
+                isDropdownOpen = true;
+            } catch {
+                suggestions = [];
+            } finally {
+                isLoadingSuggestions = false;
+            }
+        }, 300);
+    }
+
+    function selectSuggestion(user: UserSuggestion) {
+        if ($form.targetEmails.includes(user.email)) return;
+        $form.targetEmails = [...$form.targetEmails, user.email];
+        emailInput = "";
+        suggestions = [];
+        isDropdownOpen = false;
+        emailError = "";
+    }
+
+    function addEmailTag() {
+        const email = emailInput.trim().replace(/,$/, "");
+        if (!email) return;
+        if (!isValidEmail(email)) { emailError = "Please enter a valid email address."; return; }
+        if ($form.targetEmails.includes(email)) { emailError = "Already added."; return; }
+        $form.targetEmails = [...$form.targetEmails, email];
+        emailInput = "";
+        emailError = "";
+        suggestions = [];
+        isDropdownOpen = false;
+    }
+
+    function removeEmailTag(email: string) {
+        $form.targetEmails = $form.targetEmails.filter((t) => t !== email);
+    }
 
     function handleEmailKeydown(e: KeyboardEvent) {
         if (e.key === "Enter" || e.key === ",") {
@@ -129,26 +196,28 @@
         if (e.key === "Backspace" && emailInput === "" && $form.targetEmails.length > 0) {
             $form.targetEmails = $form.targetEmails.slice(0, -1);
         }
+        if (e.key === "Escape") {
+            isDropdownOpen = false;
+        }
     }
 
-    function addEmailTag() {
-        const email = emailInput.trim().replace(/,$/, "");
-        if (!email) return;
-        const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-        if (!valid) { emailError = "Please enter a valid email address."; return; }
-        if ($form.targetEmails.includes(email)) { emailError = "Already added."; return; }
-        $form.targetEmails = [...$form.targetEmails, email];
-        emailInput = "";
-        emailError = "";
+    function handleEmailFocus() {
+        if (emailInput.length >= 2 && suggestions.length > 0) {
+            isDropdownOpen = true;
+        }
     }
 
-    function removeEmailTag(email: string) {
-        $form.targetEmails = $form.targetEmails.filter((t) => t !== email);
+    // Click-outside action to close dropdown
+    function clickOutside(node: HTMLElement, handler: () => void) {
+        const listener = (e: MouseEvent) => {
+            if (!node.contains(e.target as Node)) handler();
+        };
+        document.addEventListener("mousedown", listener);
+        return { destroy: () => document.removeEventListener("mousedown", listener) };
     }
 
     function inferType() : "text" | "url" | "file" {
         if (uploadedFiles.length > 0) return "file";
-
         const text = textValue.trim();
         try {
             new URL(text);
@@ -177,18 +246,18 @@
             allowed_emails: formData.targetEmails,
             only_once: formData.allowOnce,
             notify_target_emails: formData.notifyTargetUsers
-        } as any)
+        } as any);
 
         submittingToBackend = false;
 
-        if(response.status === 'fileUpload'){
+        if (response.status === 'fileUpload') {
             uploadsData = response.uploads || [];
             currentShareId = response.id!;
             showFileUpload = true;
-        } else if(response.status === 'created'){
+        } else if (response.status === 'created') {
             currentShareId = response.id!;
             showSuccess = true;
-        } else if(response.status === 'error'){
+        } else if (response.status === 'error') {
             console.error(response);
             submitError = response.error || "Failed to create shareable";
         }
@@ -249,10 +318,9 @@
                                 <Card.Description>Drag & drop or click to select one or more files.</Card.Description>
                             </Card.Header>
                             <Card.Content class="flex-1 flex flex-col gap-3">
-                                <!-- Drop zone — always visible so more files can be added -->
                                 <label
                                         class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-lg cursor-pointer transition-colors
-                                    {dragOver ? 'border-primary bg-primary/5' : 'border-border bg-muted/30 hover:bg-muted/50 hover:border-muted-foreground/40'}"
+                                        {dragOver ? 'border-primary bg-primary/5' : 'border-border bg-muted/30 hover:bg-muted/50 hover:border-muted-foreground/40'}"
                                         ondragover={handleDragOver}
                                         ondragleave={handleDragLeave}
                                         ondrop={handleDrop}
@@ -267,7 +335,6 @@
                                     <input type="file" multiple disabled={hasText} class="hidden" onchange={handleFileInput} />
                                 </label>
 
-                                <!-- File list -->
                                 {#if hasFiles}
                                     <div class="flex flex-col gap-1.5">
                                         {#each uploadedFiles as file, index}
@@ -357,36 +424,97 @@
                 <div class="flex flex-col gap-2">
                     <Label>Target Users</Label>
                     <p class="text-xs text-muted-foreground">
-                        Press <kbd class="rounded border border-border px-1 py-0.5 font-mono text-[10px]">Enter</kbd> or
-                        <kbd class="rounded border border-border px-1 py-0.5 font-mono text-[10px]">,</kbd> to add.
+                        Search for a user or type an email and press
+                        <kbd class="rounded border border-border px-1 py-0.5 font-mono text-[10px]">Enter</kbd> to add.
                         Backspace removes the last one.
                     </p>
-                    <div
-                            class="min-h-10 w-full flex flex-wrap gap-1.5 items-center rounded-md border bg-background px-3 py-2 text-sm
-                        focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 transition-shadow
-                        {$errors.targetEmails ? 'border-destructive' : 'border-input'}"
-                    >
-                        {#each $form.targetEmails as email}
-                            <Badge variant="secondary" class="flex items-center gap-1 pr-1 text-xs font-normal">
-                                {email}
-                                <button
-                                        type="button"
-                                        onclick={() => removeEmailTag(email)}
-                                        class="ml-0.5 rounded-full hover:bg-muted-foreground/20 p-0.5 transition-colors"
-                                        aria-label="Remove {email}"
-                                >
-                                    <X class="h-3 w-3" />
-                                </button>
-                            </Badge>
-                        {/each}
-                        <input
-                                class="flex-1 min-w-40 bg-transparent outline-none placeholder:text-muted-foreground text-sm"
-                                placeholder={$form.targetEmails.length === 0 ? "e.g. user@example.com" : "Add another..."}
-                                bind:value={emailInput}
-                                onkeydown={handleEmailKeydown}
-                                onblur={addEmailTag}
-                        />
+
+                    <!-- Anchor wrapper for the dropdown -->
+                    <div class="relative" use:clickOutside={() => { isDropdownOpen = false; }}>
+
+                        <!-- Tag + input row -->
+                        <div
+                                class="min-h-10 w-full flex flex-wrap gap-1.5 items-center rounded-md border bg-background px-3 py-2 text-sm
+                                focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 transition-shadow
+                                {$errors.targetEmails ? 'border-destructive' : 'border-input'}"
+                        >
+                            {#each $form.targetEmails as email}
+                                <Badge variant="secondary" class="flex items-center gap-1 pr-1 text-xs font-normal">
+                                    {email}
+                                    <button
+                                            type="button"
+                                            onclick={() => removeEmailTag(email)}
+                                            class="ml-0.5 rounded-full hover:bg-muted-foreground/20 p-0.5 transition-colors"
+                                            aria-label="Remove {email}"
+                                    >
+                                        <X class="h-3 w-3" />
+                                    </button>
+                                </Badge>
+                            {/each}
+
+                            <input
+                                    class="flex-1 min-w-40 bg-transparent outline-none placeholder:text-muted-foreground text-sm"
+                                    placeholder={$form.targetEmails.length === 0 ? "Search users or enter email..." : "Add another..."}
+                                    autocomplete="off"
+                                    bind:value={emailInput}
+                                    onkeydown={handleEmailKeydown}
+                                    oninput={handleEmailInput}
+                                    onfocus={handleEmailFocus}
+                            />
+
+                            {#if isLoadingSuggestions}
+                                <Loader2 class="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+                            {/if}
+                        </div>
+
+                        {#if isDropdownOpen && (suggestions.length > 0 || (isValidEmail(emailInput) && !$form.targetEmails.includes(emailInput.trim())))}
+                            <div class="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-md text-sm overflow-hidden">
+
+                                {#if suggestions.length > 0}
+                                    <ul class="max-h-52 overflow-y-auto py-1" role="listbox">
+                                        {#each suggestions as user (user.email)}
+                                            {@const alreadyAdded = $form.targetEmails.includes(user.email)}
+                                            <li
+                                                    role="option"
+                                                    aria-selected={alreadyAdded}
+                                                    class="flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors
+                                                    {alreadyAdded
+                                                        ? 'opacity-50 pointer-events-none'
+                                                        : 'hover:bg-accent hover:text-accent-foreground'}"
+                                                    onmousedown={() => {selectSuggestion(user)}}
+                                            >
+                                                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold uppercase">
+                                                    {(user.email)[0]}
+                                                </span>
+                                                <div class="flex flex-col min-w-0 flex-1">
+                                                    <span class="text-muted-foreground truncate text-xs">{user.email}</span>
+                                                </div>
+                                                {#if alreadyAdded}
+                                                    <Check class="ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                                {/if}
+                                            </li>
+                                        {/each}
+                                    </ul>
+                                {/if}
+
+                                {#if isValidEmail(emailInput) && !suggestions.some(s => s.email === emailInput.trim()) && !$form.targetEmails.includes(emailInput.trim())}
+                                    {#if suggestions.length > 0}
+                                        <div class="border-t border-border"></div>
+                                    {/if}
+                                    <button
+                                            type="button"
+                                            class="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                                            onmousedown={addEmailTag}
+                                    >
+                                        <Plus class="h-3.5 w-3.5 shrink-0" />
+                                        Add <span class="font-medium ml-1">{emailInput.trim()}</span>
+                                    </button>
+                                {/if}
+
+                            </div>
+                        {/if}
                     </div>
+
                     {#if emailError}
                         <p class="text-xs text-destructive">{emailError}</p>
                     {:else if $errors.targetEmails}
@@ -440,7 +568,7 @@
                                 <p class="text-xs text-destructive">{$errors.expiresAt}</p>
                             {:else if $form.expiresAt}
                                 <p class="text-xs text-muted-foreground">
-                                    Ends at {formatRelative(new Date($form.expiresAt), new Date())} - {formatDistance(new Date($form.expiresAt), $form.activeFrom ? new Date($form.activeFrom) : new Date())} after activation
+                                    Ends at {formatRelative(new Date($form.expiresAt), new Date())} — {formatDistance(new Date($form.expiresAt), $form.activeFrom ? new Date($form.activeFrom) : new Date())} after activation
                                 </p>
                             {/if}
                         </div>
@@ -450,7 +578,6 @@
 
                 <div class="h-px bg-border"></div>
 
-                <!-- Notifications -->
                 <div class="flex flex-col gap-3">
                     <p class="text-sm font-medium">Notifications</p>
                     <div class="flex items-center gap-3">
@@ -469,7 +596,6 @@
 
                 <div class="h-px bg-border"></div>
 
-                <!-- Options / Switches -->
                 <div class="flex flex-col gap-4">
                     <p class="text-sm font-medium">Options</p>
                     <div class="flex items-center justify-between">
@@ -502,22 +628,22 @@
                             variant="outline"
                             type="button"
                             onclick={() => {
-                        $form.targetEmails = [];
-                        $form.activeFrom = "";
-                        $form.expiresAt = "";
-                        $form.notifyOnOpen = false;
-                        $form.notifyTargetUsers = false;
-                        $form.allowOnce = true;
-                        $form.encrypt = false;
-                        uploadedFiles = [];
-                        textValue = "";
-                        submitSuccess = false;
-                        submitError = "";
-                    }}
+                            $form.targetEmails = [];
+                            $form.activeFrom = "";
+                            $form.expiresAt = "";
+                            $form.notifyOnOpen = false;
+                            $form.notifyTargetUsers = false;
+                            $form.allowOnce = true;
+                            $form.encrypt = false;
+                            uploadedFiles = [];
+                            textValue = "";
+                            submitSuccess = false;
+                            submitError = "";
+                        }}
                     >
                         Reset
                     </Button>
-                    <Button type="submit"  disabled={submittingToBackend || hasErrors || canSubmit === false}>
+                    <Button type="submit" disabled={submittingToBackend || hasErrors || canSubmit === false}>
                         {submittingToBackend ? "Sharing..." : "Share"}
                     </Button>
                 </div>

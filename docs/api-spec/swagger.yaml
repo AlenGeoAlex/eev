@@ -170,7 +170,7 @@ definitions:
 externalDocs:
   description: App Documentation
   url: https://github.com/AlenGeoAlex/eev/docs
-host: https://e.alenalex/me
+host: e.alenalex/me
 info:
   contact:
     email: contact@alenalex.me

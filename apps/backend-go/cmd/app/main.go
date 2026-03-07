@@ -31,7 +31,7 @@ import (
 //	@contact.url	http://alenalex.me
 //	@contact.email	contact@alenalex.me
 //
-//	@host	https://e.alenalex/me
+//	@host	e.alenalex/me
 //	@basePath	/api/
 //
 // @schemes http https
@@ -51,7 +51,6 @@ import (
 func main() {
 	appConfig := config.NewAppConfig()
 	ctx, cancel := context.WithCancelCause(context.Background())
-	cancel(errors.New("server shutting down"))
 
 	log.Println("Opening SQLite DB at:", appConfig.DB.ConnectionString())
 	db, err := sql.Open("sqlite", appConfig.DB.ConnectionString())
@@ -124,6 +123,7 @@ func main() {
 		r.Use(middleware2.AutoRefreshMiddleware(authService))
 
 		r.Get("/me", meHandler.GetMe)
+		r.Get("/me/email-history", meHandler.GetEmailHistory)
 		r.Post("/share", httpx.ValidateBody[handlers.CreateShareableRequest](
 			http.HandlerFunc(shareableHandler.CreateShareable),
 		).ServeHTTP)
@@ -140,4 +140,5 @@ func main() {
 	if err != nil {
 		log.Fatal("Server failed", "error", err)
 	}
+	cancel(errors.New("server shutting down"))
 }

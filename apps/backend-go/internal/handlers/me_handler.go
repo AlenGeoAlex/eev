@@ -143,7 +143,9 @@ func (receiver *MeHandler) GetEmailHistory(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	receiver.respondJSON(w, http.StatusOK, user)
+	receiver.respondJSON(w, http.StatusOK, &TargetUserEmailResponse{
+		History: user,
+	})
 }
 
 func (receiver *MeHandler) respondJSON(w http.ResponseWriter, status int, data interface{}) {

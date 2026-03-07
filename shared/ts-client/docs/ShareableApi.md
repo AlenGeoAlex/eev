@@ -1,6 +1,6 @@
 # ShareableApi
 
-All URIs are relative to *http://https://e.alenalex/me/api*
+All URIs are relative to *http://e.alenalex/me/api*
 
 | Method | HTTP request | Description |
 |------------- | ------------- | -------------|
