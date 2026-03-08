@@ -24,6 +24,12 @@ export interface ServicesShareableCode {
      * @type {string}
      * @memberof ServicesShareableCode
      */
+    activeFrom?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ServicesShareableCode
+     */
     createdAt?: string;
     /**
      * 
@@ -98,6 +104,7 @@ export function ServicesShareableCodeFromJSONTyped(json: any, ignoreDiscriminato
     }
     return {
         
+        'activeFrom': json['activeFrom'] == null ? undefined : json['activeFrom'],
         'createdAt': json['createdAt'] == null ? undefined : json['createdAt'],
         'expiryAt': json['expiryAt'] == null ? undefined : json['expiryAt'],
         'id': json['id'] == null ? undefined : json['id'],
@@ -122,6 +129,7 @@ export function ServicesShareableCodeToJSONTyped(value?: ServicesShareableCode |
 
     return {
         
+        'activeFrom': value['activeFrom'],
         'createdAt': value['createdAt'],
         'expiryAt': value['expiryAt'],
         'id': value['id'],

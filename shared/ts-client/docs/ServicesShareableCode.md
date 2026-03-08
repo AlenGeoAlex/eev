@@ -6,6 +6,7 @@
 
 Name | Type
 ------------ | -------------
+`activeFrom` | string
 `createdAt` | string
 `expiryAt` | string
 `id` | string
@@ -24,6 +25,7 @@ import type { ServicesShareableCode } from ''
 
 // TODO: Update the object below with actual values
 const example = {
+  "activeFrom": null,
   "createdAt": null,
   "expiryAt": null,
   "id": null,

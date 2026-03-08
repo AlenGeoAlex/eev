@@ -29,11 +29,21 @@ type ShareableCode struct {
 	UserID        string
 	UserEmail     string
 	SourceIp      string
-	ExpiryAt      *time.Time
+	ExpiryAt      time.Time
+	ActiveFrom    time.Time
 	CreatedAt     time.Time
 	ShareableType string
 	ShareableData string
 	Options       map[ShareableOption]string
+}
+
+type ShareableSignedFile struct {
+	ID          string
+	ShareID     string
+	FileName    string
+	ContentType string
+	ContentSize int64
+	SignedURL   string
 }
 
 type ShareableOption string
@@ -236,7 +246,7 @@ func (s ShareableService) CreateShareable(
 		UserID:        userID,
 		UserEmail:     "",
 		SourceIp:      sourceIP,
-		ExpiryAt:      &expiryAt,
+		ExpiryAt:      expiryAt,
 		CreatedAt:     time.Now(),
 		ShareableType: shareableType,
 		ShareableData: data,
@@ -316,6 +326,39 @@ func generateID() string {
 	return internal.MicroTimeID()
 }
 
+func (s ShareableService) GetSignedFilesForShareable(id string) ([]ShareableSignedFile, error) {
+	if id == "" {
+		return nil, errors.New("id cannot be empty")
+	}
+
+	files, err := s.q.GetShareableFiles(context.Background(), id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return make([]ShareableSignedFile, 0), nil
+		}
+		return nil, err
+	}
+
+	filesWithSignedURLs := make([]ShareableSignedFile, len(files))
+	for i, file := range files {
+		signedURL, err := s.s3Manager.PresignGetObject(context.Background(), file.S3Key)
+		if err != nil {
+			return nil, errors.Join(errors.New("Failed to generate signed url for "+file.S3Key), err)
+		}
+
+		filesWithSignedURLs[i] = ShareableSignedFile{
+			ID:          file.ID,
+			ShareID:     file.ShareID,
+			FileName:    file.FileName,
+			ContentType: file.ContentType,
+			//ContentSize: file.,
+			SignedURL: signedURL,
+		}
+	}
+
+	return filesWithSignedURLs, nil
+}
+
 func (s ShareableService) GetShareableInfoFromCode(
 	code string,
 ) (*ShareableCode, error) {
@@ -325,7 +368,7 @@ func (s ShareableService) GetShareableInfoFromCode(
 	}
 
 	shareable, err := s.q.GetShareable(context.Background(), code)
-	if err != nil {
+	if err != nil && errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
 
@@ -335,6 +378,14 @@ func (s ShareableService) GetShareableInfoFromCode(
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	if shareableCode.ActiveFrom.After(time.Now()) {
+		return nil, errors.New("shareable code is not active yet")
+	}
+
+	if shareableCode.ExpiryAt.Before(time.Now()) {
+		return nil, errors.New("shareable code has expired")
 	}
 
 	return shareableCode, nil
@@ -350,13 +401,12 @@ func toShareableCode(shareable *[]sqliteeev.GetShareableRow) (*ShareableCode, er
 		Name:          (*shareable)[0].Name,
 		UserID:        (*shareable)[0].UserID,
 		UserEmail:     (*shareable)[0].Email,
-		ExpiryAt:      nil,
+		ExpiryAt:      (*shareable)[0].ExpiryAt,
 		ShareableType: (*shareable)[0].ShareableType,
 		ShareableData: (*shareable)[0].ShareableData,
+		ActiveFrom:    (*shareable)[0].ActiveFrom,
 		Options:       map[ShareableOption]string{},
 	}
-
-	shareableCode.ExpiryAt = &(*shareable)[0].ExpiryAt
 
 	for _, row := range *shareable {
 		shareableCode.Options[ShareableOption(row.OptionKey)] = row.Value

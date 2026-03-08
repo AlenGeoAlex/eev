@@ -498,6 +498,9 @@ const docTemplate = `{
         "services.ShareableCode": {
             "type": "object",
             "properties": {
+                "activeFrom": {
+                    "type": "string"
+                },
                 "createdAt": {
                     "type": "string"
                 },

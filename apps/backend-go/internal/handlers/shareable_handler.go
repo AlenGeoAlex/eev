@@ -66,8 +66,8 @@ type CreateShareableRequestTimeParams struct {
 }
 
 type GetShareableResponse struct {
-	Code  *services.ShareableCode
-	Token *string
+	Shareable services.ShareableCode          `json:"code"`
+	Files     *[]services.ShareableSignedFile `json:"files"`
 }
 
 func NewShareableHandler(shareableService *services.ShareableService) *ShareableHandler {
@@ -298,7 +298,25 @@ func (h *ShareableHandler) GetShareable(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	h.respondJSON(w, http.StatusOK, fromCode)
+	if fromCode == nil {
+		h.respondError(w, http.StatusNotFound, "Failed to get shareable info from code")
+		return
+	}
+
+	response := GetShareableResponse{
+		Shareable: *fromCode,
+	}
+	if fromCode.ShareableType == string(services.ShareableTypeFile) {
+		files, err := h.shareableService.GetSignedFilesForShareable(fromCode.ID)
+		if err != nil {
+			h.respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		response.Files = &files
+	}
+
+	h.respondJSON(w, http.StatusOK, response)
 }
 
 func (h *ShareableHandler) userIDFromContext(ctx context.Context) (string, error) {

@@ -127,6 +127,8 @@ definitions:
     type: object
   services.ShareableCode:
     properties:
+      activeFrom:
+        type: string
       createdAt:
         type: string
       expiryAt:
