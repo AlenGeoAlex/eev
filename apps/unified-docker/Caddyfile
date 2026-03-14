@@ -1,0 +1,33 @@
+{
+    admin off
+}
+
+:80 {
+    # Set up logger to the stdout - So that I can see the docker logs
+    log {
+        output stdout
+    }
+
+    encode gzip zstd
+
+    handle_path /api/* {
+        reverse_proxy localhost:8080 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle {
+        reverse_proxy localhost:3000
+    }
+
+
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    }
+}

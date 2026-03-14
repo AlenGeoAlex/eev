@@ -8,6 +8,11 @@ tasks:
     cmds:
       - air
 
+  app:build:unified:
+    desc: Build unified docker image
+    cmds:
+      - docker build -f apps/unified-docker/Dockerfile .
+
   app:migrate:build:
     desc: Build migration binary
     cmds:
