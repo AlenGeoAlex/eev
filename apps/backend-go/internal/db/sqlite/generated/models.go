@@ -32,6 +32,7 @@ type Shareable struct {
 	CreatedAt     time.Time
 	ShareableType string
 	ShareableData string
+	RevokedAt     sql.NullTime
 }
 
 type ShareableFile struct {
@@ -41,6 +42,7 @@ type ShareableFile struct {
 	ContentType string
 	S3Key       string
 	CreatedAt   time.Time
+	ContentSize float64
 }
 
 type ShareableOption struct {

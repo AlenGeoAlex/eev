@@ -58,6 +58,35 @@ definitions:
           $ref: '#/definitions/handlers.ShareableFileUpload'
         type: array
     type: object
+  handlers.GetShareableResponse:
+    properties:
+      active_from:
+        type: string
+      created_at:
+        type: string
+      data:
+        type: string
+      expiry_at:
+        type: string
+      files:
+        items:
+          $ref: '#/definitions/handlers.ShareableFileResponse'
+        type: array
+      id:
+        type: string
+      name:
+        type: string
+      options:
+        additionalProperties:
+          type: string
+        type: object
+      type:
+        type: string
+      user_email:
+        type: string
+      user_id:
+        type: string
+    type: object
   handlers.GoogleCallbackRequest:
     properties:
       code:
@@ -104,6 +133,21 @@ definitions:
     - file_name
     - file_size
     type: object
+  handlers.ShareableFileResponse:
+    properties:
+      content_type:
+        type: string
+      created_at:
+        type: string
+      file_name:
+        type: string
+      id:
+        type: string
+      share_id:
+        type: string
+      signed_url:
+        type: string
+    type: object
   handlers.ShareableFileUpload:
     properties:
       file_id:
@@ -123,33 +167,6 @@ definitions:
   internal.ErrorResponse:
     properties:
       message:
-        type: string
-    type: object
-  services.ShareableCode:
-    properties:
-      activeFrom:
-        type: string
-      createdAt:
-        type: string
-      expiryAt:
-        type: string
-      id:
-        type: string
-      name:
-        type: string
-      options:
-        additionalProperties:
-          type: string
-        type: object
-      shareableData:
-        type: string
-      shareableType:
-        type: string
-      sourceIp:
-        type: string
-      userEmail:
-        type: string
-      userID:
         type: string
     type: object
   services.ShareableType:
@@ -351,7 +368,7 @@ paths:
         "200":
           description: Shareable info
           schema:
-            $ref: '#/definitions/services.ShareableCode'
+            $ref: '#/definitions/handlers.GetShareableResponse'
         "400":
           description: Invalid code
           schema:

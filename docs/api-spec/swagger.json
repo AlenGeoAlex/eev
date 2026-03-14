@@ -275,7 +275,7 @@
                     "200": {
                         "description": "Shareable info",
                         "schema": {
-                            "$ref": "#/definitions/services.ShareableCode"
+                            "$ref": "#/definitions/handlers.GetShareableResponse"
                         }
                     },
                     "400": {
@@ -389,6 +389,50 @@
                 }
             }
         },
+        "handlers.GetShareableResponse": {
+            "type": "object",
+            "properties": {
+                "active_from": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "data": {
+                    "type": "string"
+                },
+                "expiry_at": {
+                    "type": "string"
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.ShareableFileResponse"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                },
+                "user_email": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.GoogleCallbackRequest": {
             "type": "object",
             "required": [
@@ -459,6 +503,29 @@
                 }
             }
         },
+        "handlers.ShareableFileResponse": {
+            "type": "object",
+            "properties": {
+                "content_type": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "file_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "share_id": {
+                    "type": "string"
+                },
+                "signed_url": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.ShareableFileUpload": {
             "type": "object",
             "properties": {
@@ -488,47 +555,6 @@
             "type": "object",
             "properties": {
                 "message": {
-                    "type": "string"
-                }
-            }
-        },
-        "services.ShareableCode": {
-            "type": "object",
-            "properties": {
-                "activeFrom": {
-                    "type": "string"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "expiryAt": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "options": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "shareableData": {
-                    "type": "string"
-                },
-                "shareableType": {
-                    "type": "string"
-                },
-                "sourceIp": {
-                    "type": "string"
-                },
-                "userEmail": {
-                    "type": "string"
-                },
-                "userID": {
                     "type": "string"
                 }
             }

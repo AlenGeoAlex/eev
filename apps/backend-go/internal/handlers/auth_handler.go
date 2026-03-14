@@ -5,6 +5,7 @@ import (
 	"backend-go/internal"
 	"backend-go/internal/httpx"
 	"backend-go/internal/services"
+	"backend-go/internal/strings"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -145,7 +146,7 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true,
 		Secure:   secure,
 		Path:     "/",
-		Expires:  time.Now().Add(h.jwtConfig.AccessTTL),
+		Expires:  expiry,
 	})
 
 	http.SetCookie(w, &http.Cookie{
@@ -181,8 +182,8 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 // @Success 204 "User logged out successfully"
 // @Router /auth/logout [delete]
 //func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
-//	accessCookie, accessErr := r.Cookie(string(httpx.AccessTokenCookieKey))
-//	refreshCookie, refreshErr := r.Cookie(string(httpx.RefreshTokenCookieKey))
+//	accessCookie, accessErr := r.Cookie(strings(httpx.AccessTokenCookieKey))
+//	refreshCookie, refreshErr := r.Cookie(strings(httpx.RefreshTokenCookieKey))
 //
 //	jtiAccessToken := ""
 //	jtiRefreshToken := ""
@@ -190,11 +191,11 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 //
 //	if accessErr == nil && accessCookie.Value != "" {
 //		if claims, err := h.authService.ValidateAccessToken(accessCookie.Value, false); err == nil {
-//			if userID, ok := (*claims)["sub"].(string); ok {
+//			if userID, ok := (*claims)["sub"].(strings); ok {
 //				jwtUserId = userID
 //			}
 //
-//			if jti, ok := (*claims)["jti"].(string); ok {
+//			if jti, ok := (*claims)["jti"].(strings); ok {
 //				jtiAccessToken = jti
 //			}
 //		}
@@ -205,7 +206,7 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 //	}
 //
 //	secure := !h.appConfig.IsDevelopment()
-//	clearCookie := func(name string) {
+//	clearCookie := func(name strings) {
 //		http.SetCookie(w, &http.Cookie{
 //			Name:     name,
 //			Value:    "",
@@ -216,8 +217,8 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 //		})
 //	}
 //
-//	clearCookie(string(httpx.AccessTokenCookieKey))
-//	clearCookie(string(httpx.RefreshTokenCookieKey))
+//	clearCookie(strings(httpx.AccessTokenCookieKey))
+//	clearCookie(strings(httpx.RefreshTokenCookieKey))
 //
 //	w.WriteHeader(http.StatusNoContent)
 //}
@@ -230,6 +231,6 @@ func (h *AuthHandler) respondJSON(w http.ResponseWriter, status int, data interf
 
 func (h *AuthHandler) respondError(w http.ResponseWriter, status int, message string) {
 	h.respondJSON(w, status, internal.ErrorResponse{
-		Message: message,
+		Message: strings.Capitalize(message),
 	})
 }

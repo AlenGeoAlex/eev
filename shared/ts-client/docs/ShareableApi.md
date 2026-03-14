@@ -11,7 +11,7 @@ All URIs are relative to *http://e.alenalex/me/api*
 
 ## shareCodeGet
 
-> ServicesShareableCode shareCodeGet(code)
+> HandlersGetShareableResponse shareCodeGet(code)
 
 Get shareable by code
 
@@ -56,7 +56,7 @@ example().catch(console.error);
 
 ### Return type
 
-[**ServicesShareableCode**](ServicesShareableCode.md)
+[**HandlersGetShareableResponse**](HandlersGetShareableResponse.md)
 
 ### Authorization
 

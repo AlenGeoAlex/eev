@@ -17,6 +17,7 @@ CREATE TABLE shareable (
                                            created_at DATETIME NOT NULL DEFAULT (datetime('now')),
                                            shareable_type TEXT NOT NULL,
                                            shareable_data TEXT NOT NULL,
+                                           revoked_at DATETIME NULL,
                                            FOREIGN KEY(user_id) REFERENCES user(id)
     );
 CREATE TABLE shareable_options (
@@ -38,16 +39,6 @@ CREATE INDEX idx_refresh_user_id
     ON refresh_token(user_id);
 CREATE UNIQUE INDEX idx_user_email
     ON user(email);
-CREATE TABLE shareable_files (
-                                 id           TEXT PRIMARY KEY NOT NULL,
-                                 share_id     TEXT NOT NULL,
-                                 file_name    TEXT NOT NULL,
-                                 content_type TEXT NOT NULL,
-                                 s3_key       TEXT NOT NULL,
-                                 created_at   DATETIME NOT NULL DEFAULT (datetime('now')),
-                                 FOREIGN KEY(share_id) REFERENCES shareable(id)
-);
-CREATE INDEX idx_shareable_files_share_id ON shareable_files(share_id);
 CREATE TABLE user_target_history
 (
     user_id TEXT NOT NULL,
@@ -57,3 +48,17 @@ CREATE TABLE user_target_history
     PRIMARY KEY(user_id, target_email),
     FOREIGN KEY(user_id) REFERENCES user(user_id)
 );
+CREATE TABLE IF NOT EXISTS "shareable_files"
+(
+    id           TEXT                               not null
+        primary key,
+    share_id     TEXT                               not null
+        references shareable,
+    file_name    TEXT                               not null,
+    content_type TEXT                               not null,
+    s3_key       TEXT                               not null,
+    created_at   DATETIME default (datetime('now')) not null,
+    content_size float    default 0                 not null
+);
+CREATE INDEX idx_shareable_files_share_id
+    on shareable_files (share_id);

@@ -1,0 +1,2 @@
+ALTER TABLE shareable_files
+ADD COLUMN content_size FLOAT NOT NULL DEFAULT 0;

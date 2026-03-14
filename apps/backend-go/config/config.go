@@ -60,7 +60,7 @@ type JwtConfig struct {
 	RefreshSecret string `env:"JWT_REFRESH_SECRET"`
 	Issuer        string `env:"JWT_ISSUER" envDefault:"me.eev.alenalex"`
 
-	AccessTTL  time.Duration `env:"JWT_ACCESS_TTL"  envDefault:"1h"`
+	AccessTTL  time.Duration `env:"JWT_ACCESS_TTL"  envDefault:"1m"`
 	RefreshTTL time.Duration `env:"JWT_REFRESH_TTL" envDefault:"480h"` // 20 days
 }
 

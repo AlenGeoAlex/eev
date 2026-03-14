@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"backend-go/internal"
+	"backend-go/internal/strings"
 	"encoding/json"
 	"net/http"
 
@@ -37,6 +38,6 @@ func (h *LiveHandler) respondJSON(w http.ResponseWriter, status int, data interf
 
 func (h *LiveHandler) respondError(w http.ResponseWriter, status int, message string) {
 	h.respondJSON(w, status, internal.ErrorResponse{
-		Message: message,
+		Message: strings.Capitalize(message),
 	})
 }

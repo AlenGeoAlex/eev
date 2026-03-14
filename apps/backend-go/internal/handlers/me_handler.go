@@ -4,6 +4,7 @@ import (
 	"backend-go/internal"
 	"backend-go/internal/httpx"
 	"backend-go/internal/services"
+	"backend-go/internal/strings"
 	"encoding/json"
 	"net/http"
 
@@ -156,6 +157,6 @@ func (receiver *MeHandler) respondJSON(w http.ResponseWriter, status int, data i
 
 func (receiver *MeHandler) respondError(w http.ResponseWriter, status int, message string) {
 	receiver.respondJSON(w, status, internal.ErrorResponse{
-		Message: message,
+		Message: strings.Capitalize(message),
 	})
 }

@@ -2,10 +2,23 @@
 SELECT * FROM shareable WHERE user_id = ?;
 
 -- name: GetShareable :many
-SELECT s.*, so.option_key, so.value, u.email
+SELECT
+    s.id,
+    s.name,
+    s.user_id,
+    s.source_ip,
+    s.expiry_at,
+    s.active_from,
+    s.created_at,
+    s.shareable_type,
+    s.shareable_data,
+    s.revoked_at,
+    so.option_key,
+    so.value,
+    u.email
 FROM shareable s
-JOIN shareable_options so ON s.id = so.share_id
-JOIN user u ON u.id = s.user_id
+         JOIN shareable_options so ON s.id = so.share_id
+         JOIN user u ON u.id = s.user_id
 WHERE s.id = ?;
 
 -- name: GetShareableFilesOfShare :many
@@ -33,11 +46,11 @@ SET value = ?
 WHERE share_id = ? AND option_key = ?;
 
 -- name: InsertShareableFile :exec
-INSERT INTO shareable_files (id, share_id, file_name, content_type, s3_key)
-VALUES (?, ?, ?, ?, ?);
+INSERT INTO shareable_files (id, share_id, file_name, content_type, s3_key, content_size)
+VALUES (?, ?, ?, ?, ?, ?);
 
 -- name: GetShareableFiles :many
-SELECT id, share_id, file_name, content_type, s3_key, created_at
+SELECT id, share_id, file_name, content_type, s3_key, created_at, content_size
 FROM shareable_files
 WHERE share_id = ?;
 
@@ -46,3 +59,8 @@ DELETE FROM shareable_files WHERE id = ?;
 
 -- name: DeleteShareableFilesByShareID :exec
 DELETE FROM shareable_files WHERE share_id = ?;
+
+-- name: SetShareableAsRevoked :exec
+UPDATE shareable
+SET revoked_at = ?
+WHERE id = ?;

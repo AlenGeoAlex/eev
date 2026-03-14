@@ -1,0 +1,2 @@
+ALTER TABLE shareable
+ADD COLUMN revoked_at DATETIME NULL;

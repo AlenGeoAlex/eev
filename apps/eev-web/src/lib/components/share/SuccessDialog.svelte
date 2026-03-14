@@ -16,7 +16,7 @@
 	} = $props();
 
 	let copied = $state(false);
-	const shareUrl = $derived(`${window.location.origin}/?share=${shareId}`);
+	const shareUrl = $derived(`${window.location.origin}/share/${shareId}`);
 
 	function copyToClipboard() {
 		navigator.clipboard.writeText(shareUrl);

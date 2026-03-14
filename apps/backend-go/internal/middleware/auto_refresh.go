@@ -4,6 +4,7 @@ import (
 	"backend-go/internal"
 	"backend-go/internal/httpx"
 	"backend-go/internal/services"
+	"backend-go/internal/strings"
 	"context"
 	"encoding/json"
 	"errors"
@@ -40,7 +41,7 @@ func AutoRefreshMiddleware(auth *services.AuthService) func(next http.Handler) h
 				return
 			}
 
-			newAccess, newRefresh, _, err := auth.Refresh(r.Context(), accessCookie.Value, refreshCookie.Value)
+			newAccess, newRefresh, refreshExpiry, err := auth.Refresh(r.Context(), accessCookie.Value, refreshCookie.Value)
 			if err != nil {
 				log.Println("Refresh failed", err)
 				respondError(w, http.StatusUnauthorized, "Unauthorized [FR]")
@@ -49,13 +50,13 @@ func AutoRefreshMiddleware(auth *services.AuthService) func(next http.Handler) h
 
 			log.Println("Refresh succeeded")
 
-			// Set new cookies (HTTP-only, secure)
 			http.SetCookie(w, &http.Cookie{
 				Name:     string(httpx.AccessTokenCookieKey),
 				Value:    newAccess,
 				HttpOnly: true,
 				Secure:   true,
 				Path:     "/",
+				Expires:  refreshExpiry,
 			})
 			http.SetCookie(w, &http.Cookie{
 				Name:     string(httpx.RefreshTokenCookieKey),
@@ -63,6 +64,7 @@ func AutoRefreshMiddleware(auth *services.AuthService) func(next http.Handler) h
 				HttpOnly: true,
 				Secure:   true,
 				Path:     "/",
+				Expires:  refreshExpiry,
 			})
 
 			newClaims, err := auth.ValidateAccessToken(newAccess, false)
@@ -85,6 +87,6 @@ func respondJSON(w http.ResponseWriter, status int, data interface{}) {
 
 func respondError(w http.ResponseWriter, status int, message string) {
 	respondJSON(w, status, internal.ErrorResponse{
-		Message: message,
+		Message: strings.Capitalize(message),
 	})
 }

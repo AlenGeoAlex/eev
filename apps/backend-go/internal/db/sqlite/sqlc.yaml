@@ -12,3 +12,7 @@ sql:
           user: User
           shareable: Shareable
           shareable_options: ShareableOption
+        overrides:
+          - column: "shareable.revoked_at"
+            nullable: true
+            go_type: "database/sql.NullTime"

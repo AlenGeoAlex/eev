@@ -106,7 +106,7 @@ func main() {
 	authService := services.NewAuthService(appConfig.OAuth, appConfig.Jwt, queries)
 	userService := services.NewUserService(queries)
 
-	shareableHandler := handlers.NewShareableHandler(shareableService)
+	shareableHandler := handlers.NewShareableHandler(shareableService, appConfig)
 	authHandler := handlers.NewAuthHandler(appConfig, authService, userService)
 	meHandler := handlers.NewMeHandler(authService, userService)
 

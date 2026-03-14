@@ -5,6 +5,7 @@ import (
 	"backend-go/internal"
 	"backend-go/internal/httpx"
 	"backend-go/internal/services"
+	strings "backend-go/internal/strings"
 	"context"
 	"encoding/json"
 	"errors"
@@ -66,12 +67,33 @@ type CreateShareableRequestTimeParams struct {
 }
 
 type GetShareableResponse struct {
-	Shareable services.ShareableCode          `json:"code"`
-	Files     *[]services.ShareableSignedFile `json:"files"`
+	ID            string                              `json:"id"`
+	Name          string                              `json:"name"`
+	UserID        string                              `json:"user_id"`
+	UserEmail     string                              `json:"user_email"`
+	ExpiryAt      time.Time                           `json:"expiry_at"`
+	ActiveFrom    time.Time                           `json:"active_from"`
+	CreatedAt     time.Time                           `json:"created_at"`
+	ShareableType string                              `json:"type"`
+	ShareableData string                              `json:"data"`
+	Options       map[services.ShareableOption]string `json:"options"`
+	Files         *[]ShareableFileResponse            `json:"files"`
 }
 
-func NewShareableHandler(shareableService *services.ShareableService) *ShareableHandler {
-	return &ShareableHandler{shareableService: shareableService}
+type ShareableFileResponse struct {
+	ID          string    `json:"id"`
+	FileName    string    `json:"file_name"`
+	ContentType string    `json:"content_type"`
+	CreatedAt   time.Time `json:"created_at"`
+	ShareID     string    `json:"share_id"`
+	SignedURL   string    `json:"signed_url"`
+}
+
+func NewShareableHandler(shareableService *services.ShareableService, appConfig *config.AppConfig) *ShareableHandler {
+	return &ShareableHandler{
+		shareableService: shareableService,
+		appConfig:        appConfig,
+	}
 }
 
 // CreateShareable godoc
@@ -110,7 +132,6 @@ func (h *ShareableHandler) CreateShareable(w http.ResponseWriter, r *http.Reques
 		for _, file := range *body.Files {
 			contentSizeTotal += file.FileSize
 		}
-
 		if contentSizeTotal > int64(h.appConfig.MaxUploadSizeInMB)*int64(1024)*int64(1024) {
 			h.respondError(w, http.StatusBadRequest, fmt.Sprintf("Total file size must be less than %d MB", h.appConfig.MaxUploadSizeInMB))
 			return
@@ -274,7 +295,7 @@ func (h *ShareableHandler) buildOptions(body CreateShareableRequest) (map[servic
 // @Accept json
 // @Produce json
 // @Param code path string true "Shareable code"
-// @Success 200 {object} services.ShareableCode "Shareable info"
+// @Success 200 {object} GetShareableResponse "Shareable info"
 // @Failure 400 {object} internal.ErrorResponse "Invalid code"
 // @Failure 404 {object} internal.ErrorResponse "Shareable not found"
 // @Failure 500 {object} internal.ErrorResponse "Internal server error"
@@ -289,31 +310,56 @@ func (h *ShareableHandler) GetShareable(w http.ResponseWriter, r *http.Request) 
 	}
 
 	fromCode, err := h.shareableService.GetShareableInfoFromCode(code)
-	if err != nil && fromCode == nil {
-		h.respondError(w, http.StatusNotFound, "Shareable not found")
-		return
-	}
 	if err != nil {
-		h.respondError(w, http.StatusInternalServerError, err.Error())
+		if fromCode != nil && err.Error() == "shareable code is not active yet" {
+			w.Header().Set("X-S-AvailableFrom", fromCode.ActiveFrom.Format(time.RFC3339))
+			h.respondError(w, http.StatusTeapot, "Shareable code is not active yet")
+		}
+		h.respondError(w, http.StatusNotFound, err.Error())
 		return
 	}
-
 	if fromCode == nil {
-		h.respondError(w, http.StatusNotFound, "Failed to get shareable info from code")
+		h.respondError(w, http.StatusInternalServerError, "Shareable not found with code: "+code)
 		return
 	}
 
 	response := GetShareableResponse{
-		Shareable: *fromCode,
+		ID:            fromCode.ID,
+		CreatedAt:     fromCode.CreatedAt,
+		Name:          fromCode.Name,
+		UserID:        fromCode.UserID,
+		UserEmail:     fromCode.UserEmail,
+		ExpiryAt:      fromCode.ExpiryAt,
+		ActiveFrom:    fromCode.ActiveFrom,
+		ShareableType: string(fromCode.ShareableType),
+		ShareableData: fromCode.ShareableData,
+		Options:       fromCode.Options,
+		Files:         nil,
 	}
-	if fromCode.ShareableType == string(services.ShareableTypeFile) {
+	if fromCode.ShareableType == services.ShareableTypeFile {
 		files, err := h.shareableService.GetSignedFilesForShareable(fromCode.ID)
 		if err != nil {
 			h.respondError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		response.Files = &files
+		fileResponse := make([]ShareableFileResponse, len(files))
+		for i, file := range files {
+			fileResponse[i] = ShareableFileResponse{
+				FileName:    file.FileName,
+				ContentType: file.ContentType,
+				SignedURL:   file.SignedURL,
+				ID:          file.ID,
+				ShareID:     file.ShareID,
+			}
+		}
+		response.Files = &fileResponse
+	}
+
+	if fromCode.Options[services.ShareableOptionOnlyOnce] == "true" {
+		h.shareableService.PublishDeleteShareEvent(services.DeleteShareableEvent{
+			ID: fromCode.ID,
+		})
 	}
 
 	h.respondJSON(w, http.StatusOK, response)
@@ -332,7 +378,7 @@ func (h *ShareableHandler) userIDFromContext(ctx context.Context) (string, error
 
 	userID, ok := userIDRaw.(string)
 	if !ok {
-		return "", errors.New("sub is not a string")
+		return "", errors.New("sub is not a strings")
 	}
 
 	return userID, nil
@@ -346,6 +392,6 @@ func (h *ShareableHandler) respondJSON(w http.ResponseWriter, status int, data i
 
 func (h *ShareableHandler) respondError(w http.ResponseWriter, status int, message string) {
 	h.respondJSON(w, status, internal.ErrorResponse{
-		Message: message,
+		Message: strings.Capitalize(message),
 	})
 }

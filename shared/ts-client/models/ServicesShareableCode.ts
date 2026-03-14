@@ -13,6 +13,14 @@
  */
 
 import { mapValues } from '../runtime';
+import type { ServicesShareableType } from './ServicesShareableType';
+import {
+    ServicesShareableTypeFromJSON,
+    ServicesShareableTypeFromJSONTyped,
+    ServicesShareableTypeToJSON,
+    ServicesShareableTypeToJSONTyped,
+} from './ServicesShareableType';
+
 /**
  * 
  * @export
@@ -63,10 +71,10 @@ export interface ServicesShareableCode {
     shareableData?: string;
     /**
      * 
-     * @type {string}
+     * @type {ServicesShareableType}
      * @memberof ServicesShareableCode
      */
-    shareableType?: string;
+    shareableType?: ServicesShareableType;
     /**
      * 
      * @type {string}
@@ -86,6 +94,8 @@ export interface ServicesShareableCode {
      */
     userID?: string;
 }
+
+
 
 /**
  * Check if a given object implements the ServicesShareableCode interface.
@@ -111,7 +121,7 @@ export function ServicesShareableCodeFromJSONTyped(json: any, ignoreDiscriminato
         'name': json['name'] == null ? undefined : json['name'],
         'options': json['options'] == null ? undefined : json['options'],
         'shareableData': json['shareableData'] == null ? undefined : json['shareableData'],
-        'shareableType': json['shareableType'] == null ? undefined : json['shareableType'],
+        'shareableType': json['shareableType'] == null ? undefined : ServicesShareableTypeFromJSON(json['shareableType']),
         'sourceIp': json['sourceIp'] == null ? undefined : json['sourceIp'],
         'userEmail': json['userEmail'] == null ? undefined : json['userEmail'],
         'userID': json['userID'] == null ? undefined : json['userID'],
@@ -136,7 +146,7 @@ export function ServicesShareableCodeToJSONTyped(value?: ServicesShareableCode |
         'name': value['name'],
         'options': value['options'],
         'shareableData': value['shareableData'],
-        'shareableType': value['shareableType'],
+        'shareableType': ServicesShareableTypeToJSON(value['shareableType']),
         'sourceIp': value['sourceIp'],
         'userEmail': value['userEmail'],
         'userID': value['userID'],

@@ -17,18 +17,18 @@ import * as runtime from '../runtime';
 import type {
   HandlersCreateShareableRequest,
   HandlersCreateShareableResponse,
+  HandlersGetShareableResponse,
   InternalErrorResponse,
-  ServicesShareableCode,
 } from '../models/index';
 import {
     HandlersCreateShareableRequestFromJSON,
     HandlersCreateShareableRequestToJSON,
     HandlersCreateShareableResponseFromJSON,
     HandlersCreateShareableResponseToJSON,
+    HandlersGetShareableResponseFromJSON,
+    HandlersGetShareableResponseToJSON,
     InternalErrorResponseFromJSON,
     InternalErrorResponseToJSON,
-    ServicesShareableCodeFromJSON,
-    ServicesShareableCodeToJSON,
 } from '../models/index';
 
 export interface ShareCodeGetRequest {
@@ -75,18 +75,18 @@ export class ShareableApi extends runtime.BaseAPI {
      * Retrieves public shareable information using its unique code.
      * Get shareable by code
      */
-    async shareCodeGetRaw(requestParameters: ShareCodeGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ServicesShareableCode>> {
+    async shareCodeGetRaw(requestParameters: ShareCodeGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<HandlersGetShareableResponse>> {
         const requestOptions = await this.shareCodeGetRequestOpts(requestParameters);
         const response = await this.request(requestOptions, initOverrides);
 
-        return new runtime.JSONApiResponse(response, (jsonValue) => ServicesShareableCodeFromJSON(jsonValue));
+        return new runtime.JSONApiResponse(response, (jsonValue) => HandlersGetShareableResponseFromJSON(jsonValue));
     }
 
     /**
      * Retrieves public shareable information using its unique code.
      * Get shareable by code
      */
-    async shareCodeGet(requestParameters: ShareCodeGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ServicesShareableCode> {
+    async shareCodeGet(requestParameters: ShareCodeGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<HandlersGetShareableResponse> {
         const response = await this.shareCodeGetRaw(requestParameters, initOverrides);
         return await response.value();
     }

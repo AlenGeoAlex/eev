@@ -41,13 +41,6 @@ tasks:
       - migrate create -ext sql -dir {{.SQLITE_MIGRATION_DIR}} -seq {{.NAME}}
       - echo "Migration file created successfully for SQLite database."
 
-  migration:new:
-    desc: Create a new migration file for the specified database with specified name.
-    cmds:
-      - task migrate:new:pgsql NAME={{.NAME}}
-      - task migrate:new:sqlite NAME={{.NAME}}
-      - echo "Migration file created successfully for both PostgreSQL and SQLite databases."
-
   migrate:up-local:sqlite:
     desc: Run SQLite migrations (up)
     cmds:

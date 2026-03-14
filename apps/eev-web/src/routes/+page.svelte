@@ -9,11 +9,14 @@
 <script lang="ts">
     import * as Card from "$lib/components/ui/card/index.js";
     import * as Form from "$lib/components/ui/form/index.js";
+    import { page } from '$app/state';
     import * as InputOTP from "$lib/components/ui/input-otp/index.js";
     import {Search} from "@lucide/svelte";
     import {defaults, superForm} from "sveltekit-superforms";
     import {zod4} from "sveltekit-superforms/adapters";
     import {Button} from "$lib/components/ui/button";
+    import {goto} from "$app/navigation";
+    import {onMount} from "svelte";
 
     const form = superForm(defaults(zod4(formSchema)), {
         validators: zod4(formSchema),
@@ -35,12 +38,26 @@
         || $submitting;
 
     function search(){
-
+        goto(`/share/${$formData.code}`)
     }
 
     function reset(){
         form.reset();
     }
+
+    onMount(() => {
+        const share = page.url.searchParams.get('share');
+        if (share) {
+            formData.update((current) => ({
+                ...current,
+                code: share.toUpperCase()
+            }));
+
+            search();
+        }
+
+        search()
+    })
 
 
 </script>

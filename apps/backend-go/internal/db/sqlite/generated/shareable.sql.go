@@ -30,10 +30,23 @@ func (q *Queries) DeleteShareableFilesByShareID(ctx context.Context, shareID str
 }
 
 const getShareable = `-- name: GetShareable :many
-SELECT s.id, s.name, s.user_id, s.source_ip, s.expiry_at, s.active_from, s.created_at, s.shareable_type, s.shareable_data, so.option_key, so.value, u.email
+SELECT
+    s.id,
+    s.name,
+    s.user_id,
+    s.source_ip,
+    s.expiry_at,
+    s.active_from,
+    s.created_at,
+    s.shareable_type,
+    s.shareable_data,
+    s.revoked_at,
+    so.option_key,
+    so.value,
+    u.email
 FROM shareable s
-JOIN shareable_options so ON s.id = so.share_id
-JOIN user u ON u.id = s.user_id
+         JOIN shareable_options so ON s.id = so.share_id
+         JOIN user u ON u.id = s.user_id
 WHERE s.id = ?
 `
 
@@ -47,6 +60,7 @@ type GetShareableRow struct {
 	CreatedAt     time.Time
 	ShareableType string
 	ShareableData string
+	RevokedAt     sql.NullTime
 	OptionKey     string
 	Value         string
 	Email         string
@@ -71,6 +85,7 @@ func (q *Queries) GetShareable(ctx context.Context, id string) ([]GetShareableRo
 			&i.CreatedAt,
 			&i.ShareableType,
 			&i.ShareableData,
+			&i.RevokedAt,
 			&i.OptionKey,
 			&i.Value,
 			&i.Email,
@@ -89,7 +104,7 @@ func (q *Queries) GetShareable(ctx context.Context, id string) ([]GetShareableRo
 }
 
 const getShareableFiles = `-- name: GetShareableFiles :many
-SELECT id, share_id, file_name, content_type, s3_key, created_at
+SELECT id, share_id, file_name, content_type, s3_key, created_at, content_size
 FROM shareable_files
 WHERE share_id = ?
 `
@@ -110,6 +125,7 @@ func (q *Queries) GetShareableFiles(ctx context.Context, shareID string) ([]Shar
 			&i.ContentType,
 			&i.S3Key,
 			&i.CreatedAt,
+			&i.ContentSize,
 		); err != nil {
 			return nil, err
 		}
@@ -125,7 +141,7 @@ func (q *Queries) GetShareableFiles(ctx context.Context, shareID string) ([]Shar
 }
 
 const getShareableFilesOfShare = `-- name: GetShareableFilesOfShare :many
-SELECT id, share_id, file_name, content_type, s3_key, created_at
+SELECT id, share_id, file_name, content_type, s3_key, created_at, content_size
 FROM shareable_files sf
 WHERE sf.share_id = ?
 ORDER BY sf.file_name
@@ -147,6 +163,7 @@ func (q *Queries) GetShareableFilesOfShare(ctx context.Context, shareID string) 
 			&i.ContentType,
 			&i.S3Key,
 			&i.CreatedAt,
+			&i.ContentSize,
 		); err != nil {
 			return nil, err
 		}
@@ -192,8 +209,8 @@ func (q *Queries) InsertShareable(ctx context.Context, arg InsertShareableParams
 }
 
 const insertShareableFile = `-- name: InsertShareableFile :exec
-INSERT INTO shareable_files (id, share_id, file_name, content_type, s3_key)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO shareable_files (id, share_id, file_name, content_type, s3_key, content_size)
+VALUES (?, ?, ?, ?, ?, ?)
 `
 
 type InsertShareableFileParams struct {
@@ -202,6 +219,7 @@ type InsertShareableFileParams struct {
 	FileName    string
 	ContentType string
 	S3Key       string
+	ContentSize float64
 }
 
 func (q *Queries) InsertShareableFile(ctx context.Context, arg InsertShareableFileParams) error {
@@ -211,6 +229,7 @@ func (q *Queries) InsertShareableFile(ctx context.Context, arg InsertShareableFi
 		arg.FileName,
 		arg.ContentType,
 		arg.S3Key,
+		arg.ContentSize,
 	)
 	return err
 }
@@ -232,7 +251,7 @@ func (q *Queries) InsertShareableOption(ctx context.Context, arg InsertShareable
 }
 
 const listShareableOfUser = `-- name: ListShareableOfUser :many
-SELECT id, name, user_id, source_ip, expiry_at, active_from, created_at, shareable_type, shareable_data FROM shareable WHERE user_id = ?
+SELECT id, name, user_id, source_ip, expiry_at, active_from, created_at, shareable_type, shareable_data, revoked_at FROM shareable WHERE user_id = ?
 `
 
 func (q *Queries) ListShareableOfUser(ctx context.Context, userID string) ([]Shareable, error) {
@@ -254,6 +273,7 @@ func (q *Queries) ListShareableOfUser(ctx context.Context, userID string) ([]Sha
 			&i.CreatedAt,
 			&i.ShareableType,
 			&i.ShareableData,
+			&i.RevokedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -266,6 +286,22 @@ func (q *Queries) ListShareableOfUser(ctx context.Context, userID string) ([]Sha
 		return nil, err
 	}
 	return items, nil
+}
+
+const setShareableAsRevoked = `-- name: SetShareableAsRevoked :exec
+UPDATE shareable
+SET revoked_at = ?
+WHERE id = ?
+`
+
+type SetShareableAsRevokedParams struct {
+	RevokedAt sql.NullTime
+	ID        string
+}
+
+func (q *Queries) SetShareableAsRevoked(ctx context.Context, arg SetShareableAsRevokedParams) error {
+	_, err := q.db.ExecContext(ctx, setShareableAsRevoked, arg.RevokedAt, arg.ID)
+	return err
 }
 
 const updateShareableOption = `-- name: UpdateShareableOption :exec

@@ -32,9 +32,10 @@ type ShareableCode struct {
 	ExpiryAt      time.Time
 	ActiveFrom    time.Time
 	CreatedAt     time.Time
-	ShareableType string
+	ShareableType ShareableType
 	ShareableData string
 	Options       map[ShareableOption]string
+	RevokedAt     *time.Time
 }
 
 type ShareableSignedFile struct {
@@ -100,11 +101,11 @@ func (s ShareableService) InitWorkers(ctx context.Context) {
 	s.runUpdateTargetHistoryEvent(ctx)
 }
 
-func (s ShareableService) publishFileDeletionEvent(e ShareableFileDeletionEvent) {
+func (s ShareableService) PublishFileDeletionEvent(e ShareableFileDeletionEvent) {
 	s.FileDeletionEvent <- e
 }
 
-func (s ShareableService) publishDeleteShareEvent(e DeleteShareableEvent) {
+func (s ShareableService) PublishDeleteShareEvent(e DeleteShareableEvent) {
 	s.DeleteShareableEvent <- e
 }
 
@@ -163,7 +164,7 @@ func (s ShareableService) runDeleteShareEvent(ctx context.Context) {
 								s3Keys = append(s3Keys, file.S3Key)
 							}
 
-							s.publishFileDeletionEvent(ShareableFileDeletionEvent{
+							s.PublishFileDeletionEvent(ShareableFileDeletionEvent{
 								ID:     shareable.ID,
 								S3Keys: s3Keys,
 							})
@@ -172,6 +173,16 @@ func (s ShareableService) runDeleteShareEvent(ctx context.Context) {
 						}
 					}
 
+					err = s.q.SetShareableAsRevoked(ctx, sqliteeev.SetShareableAsRevokedParams{
+						ID:        shareable.ID,
+						RevokedAt: sql.NullTime{Time: time.Now(), Valid: true},
+					})
+					if err != nil {
+						log.Printf("Failed to set shareable as revoked for %s: %v", shareable.ID, err)
+						return
+					}
+
+					log.Printf("Shareable %s revoked", shareable.ID)
 				}
 			case <-ctx.Done():
 				log.Printf("Stopping the runDeleteShareEvent due to context cancellation. [%s]", ctx.Err())
@@ -230,7 +241,7 @@ func (s ShareableService) CreateShareable(
 	for option, val := range options {
 		err := s.upsertShareableOption(option, val, id)
 		if err != nil {
-			s.publishDeleteShareEvent(DeleteShareableEvent{
+			s.PublishDeleteShareEvent(DeleteShareableEvent{
 				ID: id,
 			})
 			return nil, errors.New("failed to create shareable option - " + string(option))
@@ -248,7 +259,7 @@ func (s ShareableService) CreateShareable(
 		SourceIp:      sourceIP,
 		ExpiryAt:      expiryAt,
 		CreatedAt:     time.Now(),
-		ShareableType: shareableType,
+		ShareableType: ShareableType(shareableType),
 		ShareableData: data,
 		Options:       options,
 	}
@@ -308,6 +319,7 @@ func (s ShareableService) CreateShareableFile(
 		FileName:    fileName,
 		ContentType: contentType,
 		S3Key:       s3Key,
+		ContentSize: float64(fileSize),
 	})
 	if err != nil {
 		return id, "", err
@@ -351,8 +363,8 @@ func (s ShareableService) GetSignedFilesForShareable(id string) ([]ShareableSign
 			ShareID:     file.ShareID,
 			FileName:    file.FileName,
 			ContentType: file.ContentType,
-			//ContentSize: file.,
-			SignedURL: signedURL,
+			ContentSize: int64(file.ContentSize),
+			SignedURL:   signedURL,
 		}
 	}
 
@@ -380,8 +392,12 @@ func (s ShareableService) GetShareableInfoFromCode(
 		return nil, err
 	}
 
+	if shareableCode.RevokedAt != nil {
+		return nil, errors.New("shareable code is revoked")
+	}
+
 	if shareableCode.ActiveFrom.After(time.Now()) {
-		return nil, errors.New("shareable code is not active yet")
+		return shareableCode, errors.New("shareable code is not active yet")
 	}
 
 	if shareableCode.ExpiryAt.Before(time.Now()) {
@@ -396,16 +412,21 @@ func toShareableCode(shareable *[]sqliteeev.GetShareableRow) (*ShareableCode, er
 		return nil, nil
 	}
 
+	var revokedAt *time.Time = nil
+	if (*shareable)[0].RevokedAt.Valid {
+		revokedAt = &(*shareable)[0].RevokedAt.Time
+	}
 	shareableCode := &ShareableCode{
 		ID:            (*shareable)[0].ID,
 		Name:          (*shareable)[0].Name,
 		UserID:        (*shareable)[0].UserID,
 		UserEmail:     (*shareable)[0].Email,
 		ExpiryAt:      (*shareable)[0].ExpiryAt,
-		ShareableType: (*shareable)[0].ShareableType,
+		ShareableType: ShareableType((*shareable)[0].ShareableType),
 		ShareableData: (*shareable)[0].ShareableData,
 		ActiveFrom:    (*shareable)[0].ActiveFrom,
 		Options:       map[ShareableOption]string{},
+		RevokedAt:     revokedAt,
 	}
 
 	for _, row := range *shareable {
