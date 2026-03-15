@@ -21,7 +21,8 @@
 
 	let progressMap = $state<{ [key: string]: number }>({});
 	let completedCount = $state(0);
-	let errorCount = $state(0);
+	let errored = $state<Set<string>>(new Set());
+	let errorCount = $derived(errored.size);
 	let totalCount = $derived(uploads.length);
 
 	let started = $state(false);
@@ -30,7 +31,6 @@
 		if (started || uploads.length === 0) return;
 		started = true;
 		completedCount = 0;
-		errorCount = 0;
 
 		const uploadPromises = uploads.map(async (upload) => {
 			progressMap[upload.fileId] = 0;
@@ -41,7 +41,7 @@
 					},
 					onError: (error) => {
 						console.error(`Failed to upload ${upload.name}`, error);
-						errorCount++;
+						errored.add(upload.fileId);
 					},
 					onSuccess: () => {
 						completedCount++;
@@ -49,7 +49,7 @@
 				});
 			} catch (e) {
 				console.error(`Failed to upload ${upload.name}`, e);
-				errorCount++;
+				errored.add(upload.fileId);
 			}
 		});
 
