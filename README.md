@@ -5,7 +5,7 @@
 ---
 
 <!-- Screenshot or demo image -->
-![Share flow](docs/images/share.png)
+![Share flow](docs/images/logo.png)
 
 ---
 
@@ -55,6 +55,21 @@ eev is built for personal use. You run your own instance, your data stays yours.
 
 Everything — frontend, backend, and reverse proxy — ships as a single Docker image. No compose file, no separate services.
 
+```dotenv
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URL=https://e.alenalex.me/auth/google/callback
+ENV=
+DB_SQLITE_PATH=/opt/eev/data
+S3_ACCESS_KEY=
+S3_SECRET_KEY=
+S3_REGION=auto
+S3_BUCKET=
+S3_ENDPOINT_URL=
+```
+
+Access the docker compose file at [docker-compose.yml](./apps/unified-docker/docker-compose.yml).
+
 ```bash
 docker run -d \
   -p 8080:80 \
@@ -62,9 +77,8 @@ docker run -d \
   -e S3_SECRET_KEY=... \
   -e S3_BUCKET=... \
   .
-  . //WILL COMPLETE IT AFTER THE PROJECT IS DONE
   -v eev_data:/data \
-  ghcr.io/alenalex/eev
+  ghcr.io/alengeoalex/eev:latest
 ```
 
 The SQLite database is persisted to `/data` — mount a volume to keep it across restarts.

@@ -1,6 +1,6 @@
 services:
   eev:
-    image: alengeoalex/eev:latest
+    image: ghcr.io/alengeoalex/eev:latest
     container_name: eev
     env_file:
       - .env
