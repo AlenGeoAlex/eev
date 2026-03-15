@@ -1,0 +1,22 @@
+services:
+  eev:
+    image: alengeoalex/eev:latest
+    container_name: eev
+    env_file:
+      - .env
+    volumes:
+      - opt/eev/data/:/data
+    networks:
+      - eev-network
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: eev-cloudflare-tunnel
+    restart: unless-stopped
+    command: tunnel -no-autoupdate run
+    networks:
+      - eev-network
+
+networks:
+  eev-network:
+    driver: bridge

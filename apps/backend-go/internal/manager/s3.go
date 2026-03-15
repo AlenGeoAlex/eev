@@ -74,10 +74,8 @@ func (m *S3Manager) PresignGetObject(ctx context.Context, key string) (string, e
 // PresignPutObject returns a signed URL the client can use to upload directly to S3.
 func (m *S3Manager) PresignPutObject(ctx context.Context, key string, contentType string, contentLength int64) (string, error) {
 	req, err := m.presignClient.PresignPutObject(ctx, &s3.PutObjectInput{
-		Bucket:        aws.String(m.bucket),
-		Key:           aws.String(key),
-		ContentType:   aws.String(contentType),
-		ContentLength: aws.Int64(contentLength),
+		Bucket: aws.String(m.bucket),
+		Key:    aws.String(key),
 	}, s3.WithPresignExpires(m.signedURLTTL))
 	if err != nil {
 		return "", fmt.Errorf("failed to presign PUT for key %q: %w", key, err)
