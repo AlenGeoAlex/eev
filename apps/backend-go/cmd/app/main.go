@@ -5,6 +5,7 @@ import (
 	sqliteeev "backend-go/internal/db/sqlite/generated"
 	"backend-go/internal/handlers"
 	"backend-go/internal/httpx"
+	"backend-go/internal/jobs"
 	manager "backend-go/internal/manager"
 	middleware2 "backend-go/internal/middleware"
 	"backend-go/internal/services"
@@ -15,6 +16,8 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+
+	"github.com/robfig/cron/v3"
 
 	_ "embed"
 
@@ -135,6 +138,20 @@ func main() {
 	}
 
 	log.Printf("Server started at port %d", appConfig.Port)
+
+	//Jobs
+	cleanUpRevokedJob := jobs.NewCleanUpRevokedJob(shareableService)
+	log.Println("Running initial clean up revoked job")
+	cleanUpRevokedJob.Run()
+
+	cronManager := cron.New()
+	_, err = cronManager.AddJob("@daily", cleanUpRevokedJob)
+	if err != nil {
+		log.Fatal("Failed to add job to cron manager", "error", err)
+		return
+	}
+
+	cronManager.Start()
 
 	err = server.ListenAndServe()
 	if err != nil {

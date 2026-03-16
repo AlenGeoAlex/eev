@@ -358,7 +358,8 @@ func (h *ShareableHandler) GetShareable(w http.ResponseWriter, r *http.Request) 
 
 	if fromCode.Options[services.ShareableOptionOnlyOnce] == "true" {
 		h.shareableService.PublishDeleteShareEvent(services.DeleteShareableEvent{
-			ID: fromCode.ID,
+			ID:         fromCode.ID,
+			HardDelete: false,
 		})
 	}
 

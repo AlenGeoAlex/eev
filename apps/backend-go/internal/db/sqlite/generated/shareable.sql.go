@@ -11,6 +11,15 @@ import (
 	"time"
 )
 
+const deleteShareable = `-- name: DeleteShareable :exec
+DELETE FROM shareable WHERE id = ?
+`
+
+func (q *Queries) DeleteShareable(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, deleteShareable, id)
+	return err
+}
+
 const deleteShareableFile = `-- name: DeleteShareableFile :exec
 DELETE FROM shareable_files WHERE id = ?
 `
@@ -27,6 +36,55 @@ DELETE FROM shareable_files WHERE share_id = ?
 func (q *Queries) DeleteShareableFilesByShareID(ctx context.Context, shareID string) error {
 	_, err := q.db.ExecContext(ctx, deleteShareableFilesByShareID, shareID)
 	return err
+}
+
+const getRevokedShares = `-- name: GetRevokedShares :many
+SELECT s.id, s.name, s.shareable_type, s.user_id, s.revoked_at, s.expiry_at, u.email
+FROM shareable s
+LEFT JOIN user u ON u.id = s.user_id
+WHERE revoked_at IS NOT NULL
+AND revoked_at < datetime('now', '-1 day')
+`
+
+type GetRevokedSharesRow struct {
+	ID            string
+	Name          string
+	ShareableType string
+	UserID        string
+	RevokedAt     sql.NullTime
+	ExpiryAt      time.Time
+	Email         sql.NullString
+}
+
+func (q *Queries) GetRevokedShares(ctx context.Context) ([]GetRevokedSharesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRevokedShares)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetRevokedSharesRow{}
+	for rows.Next() {
+		var i GetRevokedSharesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.ShareableType,
+			&i.UserID,
+			&i.RevokedAt,
+			&i.ExpiryAt,
+			&i.Email,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getShareable = `-- name: GetShareable :many

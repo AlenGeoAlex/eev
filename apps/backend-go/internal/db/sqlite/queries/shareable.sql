@@ -64,3 +64,13 @@ DELETE FROM shareable_files WHERE share_id = ?;
 UPDATE shareable
 SET revoked_at = ?
 WHERE id = ?;
+
+-- name: DeleteShareable :exec
+DELETE FROM shareable WHERE id = ?;
+
+-- name: GetRevokedShares :many
+SELECT s.id, s.name, s.shareable_type, s.user_id, s.revoked_at, s.expiry_at, u.email
+FROM shareable s
+LEFT JOIN user u ON u.id = s.user_id
+WHERE revoked_at IS NOT NULL
+AND revoked_at < datetime('now', '-1 day');

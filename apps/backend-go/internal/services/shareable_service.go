@@ -65,8 +65,9 @@ type ShareableFileDeletionEvent struct {
 }
 
 type DeleteShareableEvent struct {
-	ID     string
-	Reason string
+	ID         string
+	Reason     string
+	HardDelete bool
 }
 
 type UpdateTargetHistoryEvent struct {
@@ -173,13 +174,21 @@ func (s ShareableService) runDeleteShareEvent(ctx context.Context) {
 						}
 					}
 
-					err = s.q.SetShareableAsRevoked(ctx, sqliteeev.SetShareableAsRevokedParams{
-						ID:        shareable.ID,
-						RevokedAt: sql.NullTime{Time: time.Now(), Valid: true},
-					})
-					if err != nil {
-						log.Printf("Failed to set shareable as revoked for %s: %v", shareable.ID, err)
-						return
+					if event.HardDelete {
+						err := s.q.DeleteShareable(ctx, shareable.ID)
+						if err != nil {
+							log.Printf("Failed to delete shareable %s: %v", shareable.ID, err)
+							return
+						}
+					} else {
+						err = s.q.SetShareableAsRevoked(ctx, sqliteeev.SetShareableAsRevokedParams{
+							ID:        shareable.ID,
+							RevokedAt: sql.NullTime{Time: time.Now(), Valid: true},
+						})
+						if err != nil {
+							log.Printf("Failed to set shareable as revoked for %s: %v", shareable.ID, err)
+							return
+						}
 					}
 
 					log.Printf("Shareable %s revoked", shareable.ID)
@@ -198,7 +207,21 @@ func (s ShareableService) runFileDeletion(ctx context.Context) {
 			case event := <-s.FileDeletionEvent:
 				{
 					log.Printf("Received file deletion event: %s with %d urls", event.ID, len(event.S3Keys))
+					err := s.s3Manager.DeleteObjects(ctx, event.S3Keys)
+					if err != nil {
+						return
+					}
 
+					log.Printf("Deleted %d files for share %s", len(event.S3Keys), event.ID)
+					log.Printf("Deleting share record from database %s", event.ID)
+
+					err = s.q.DeleteShareableFilesByShareID(context.Background(), event.ID)
+					if err != nil {
+						log.Printf("Failed to delete shareable files for share %s: %v", event.ID, err)
+						return
+					}
+
+					log.Printf("Deleted shareable files for share %s", event.ID)
 				}
 			case <-ctx.Done():
 				log.Println("EventBus shutting down for FileDeletionEvent")
@@ -434,4 +457,8 @@ func toShareableCode(shareable *[]sqliteeev.GetShareableRow) (*ShareableCode, er
 	}
 
 	return shareableCode, nil
+}
+
+func (s ShareableService) GetExpiredShares(ctx context.Context) ([]sqliteeev.GetRevokedSharesRow, error) {
+	return s.q.GetRevokedShares(ctx)
 }
